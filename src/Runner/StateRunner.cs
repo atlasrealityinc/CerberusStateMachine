@@ -36,7 +36,7 @@ namespace Cerberus.Runner
             _stateHandlerTypes = stateData.StateHandlerTypes;
         }
 
-        public abstract void Start();
+        public abstract void Start(StateIdT previousStateId);
 
         public abstract void Stop();
 
@@ -49,6 +49,8 @@ namespace Cerberus.Runner
     {
         protected readonly IStateChanger<StateIdT> _stateChanger;
         protected readonly Stack<object> _stateHandlerInstances = new Stack<object>();
+
+        protected StateIdT _previousStateId;
 
         protected object[] _activeInstance = new object[1];
         public StateT ActiveInstance
@@ -65,13 +67,14 @@ namespace Cerberus.Runner
             _stateChanger = stateChanger;
         }
 
-        public override void Start()
+        public override void Start(StateIdT previousStateId)
         {
             if (ActiveInstance != null)
             {
                 return;
             }
 
+            _previousStateId = previousStateId;
             ActiveInstance = _container.Resolve<StateT>();
             foreach (var stateHandlerTypeKvp in _stateHandlerTypes)
             {
@@ -80,8 +83,13 @@ namespace Cerberus.Runner
                     foreach (var stateHandler in stateHandlerTypeKvp.Value)
                     {
                         var stateHandlerInstance = _container.Resolve(stateHandler);
-                        stateHandlerInstance.GetType().GetMethod("OnEnterState", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance).Invoke(stateHandlerInstance, _activeInstance);
                         _stateHandlerInstances.Push(stateHandlerInstance);
+                        stateHandlerInstance.GetType().GetMethod("OnEnterState", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance).Invoke(stateHandlerInstance, _activeInstance);
+                        if(ActiveInstance == null)
+                        {
+                            //Calling the OnEnterState can result in the state changing, so if the state changes and Stop() is called (And the ActiveInstance becomes null) we stop
+                            return;
+                        }
                     }
                 }
             }
@@ -113,11 +121,11 @@ namespace Cerberus.Runner
         where StateIdT : Enum
         where EventIdT : Enum
     {
-        protected readonly Dictionary<EventIdT, Action<StateEvent<StateT, StateIdT>>> _events;
+        protected readonly Dictionary<EventIdT, Action<IStateEvent<StateT, StateIdT>>> _events;
 
         public StateRunner(StateData<StateT, StateIdT, EventIdT> stateData, IStateChanger<StateIdT> stateChanger) : base(stateData, stateChanger)
         {
-            _events = stateData.StateEvents ?? new Dictionary<EventIdT, Action<StateEvent<StateT, StateIdT>>>();
+            _events = stateData.StateEvents ?? new Dictionary<EventIdT, Action<IStateEvent<StateT, StateIdT>>>();
         }
 
         public bool TriggerEvent(EventIdT eventId)
@@ -127,7 +135,7 @@ namespace Cerberus.Runner
 
             if (_events.TryGetValue(eventId, out var action))
             {
-                action?.Invoke(new StateEvent<StateT, StateIdT>(this));
+                action?.Invoke(new StateEvent<StateT, StateIdT>(this, _previousStateId));
                 return true;
             }
             return false;
@@ -171,24 +179,24 @@ namespace Cerberus.Runner
             DefaultSubStateId = _subStateRunners.First().Key;
         }
 
-        public override void Start()
+        public override void Start(StateIdT previousStateId)
         {
             if (ActiveInstance != null)
             {
                 return;
             }
 
-            base.Start();
+            base.Start(previousStateId);
 
             if (ActiveSubState != null)
             {
                 //Shouldnt ever get here
-                ActiveSubState.Start();
+                ActiveSubState.Start(DefaultSubStateId);
                 return;
             }
 
             ActiveSubState = _subStateRunners[DefaultSubStateId];
-            ActiveSubState.Start();
+            ActiveSubState.Start(DefaultSubStateId);
         }
 
         public override void Stop()
@@ -211,6 +219,7 @@ namespace Cerberus.Runner
 
         public void ChangeState(SubStateIdT stateId)
         {
+            var previousSubStateId = DefaultSubStateId;
             if (ActiveSubState != null)
             {
                 if (ActiveSubState.StateId.Equals(stateId))
@@ -218,13 +227,14 @@ namespace Cerberus.Runner
                     return;
                 }
 
+                previousSubStateId = ActiveSubState.StateId;
                 ActiveSubState.Stop();
             }
 
             if (_subStateRunners.TryGetValue(stateId, out var nextSubStateRunner))
             {
                 ActiveSubState = nextSubStateRunner;
-                ActiveSubState.Start();
+                ActiveSubState.Start(previousSubStateId);
             }
         }
 

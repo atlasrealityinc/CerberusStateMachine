@@ -11,6 +11,7 @@ namespace Cerberus
             where StateIdT : Enum
     {
         protected readonly IDictionary<StateIdT, StateRunner<StateIdT>> _stateRunners;
+        protected readonly StateIdT _defaultStateId;
 
         public IStateControllerProvider StateControllerProvider { get; }
 
@@ -28,6 +29,7 @@ namespace Cerberus
                 _stateRunners
                     .ToDictionary(kvp => (Enum)kvp.Key, kvp => kvp.Value.BindInfo.ToDictionary(bindInfo => bindInfo.ContractTypes[0].GetGenericArguments()[0], bindInfo => bindInfo)),
                 stateMachineData?.Build(this));
+            _defaultStateId = _stateRunners.First().Key;
         }
 
         public void Start()
@@ -38,11 +40,12 @@ namespace Cerberus
             }
             _isRunning = true;
 
-            ChangeState(_stateRunners.First().Key);
+            ChangeState(_defaultStateId);
         }
 
         public void ChangeState(StateIdT stateId)
         {
+            var previousSubStateId = _defaultStateId;
             if (_activeState != null)
             {
                 if (_activeState.StateId.Equals(stateId))
@@ -50,13 +53,14 @@ namespace Cerberus
                     return;
                 }
 
+                previousSubStateId = _activeState.StateId;
                 _activeState.Stop();
             }
 
             if (_stateRunners.TryGetValue(stateId, out var nextActiveState))
             {
                 _activeState = nextActiveState;
-                _activeState.Start();
+                _activeState.Start(previousSubStateId);
             }
         }
     }

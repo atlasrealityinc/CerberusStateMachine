@@ -38,14 +38,14 @@ namespace Cerberus.Builder.Data
         where StateIdT : Enum
         where EventIdT : Enum
     {
-        public Dictionary<EventIdT, Action<StateEvent<StateT, StateIdT>>> StateEvents { get; } = new Dictionary<EventIdT, Action<StateEvent<StateT, StateIdT>>>();
+        public Dictionary<EventIdT, Action<IStateEvent<StateT, StateIdT>>> StateEvents { get; } = new Dictionary<EventIdT, Action<IStateEvent<StateT, StateIdT>>>();
 
         public StateData(StateIdT stateId, IStateMachineContainer stateMachineContainer, Dictionary<Type, List<Type>> stateHandlerTypes) : base(stateId, stateMachineContainer, stateHandlerTypes)
         {
 
         }
 
-        public void AddEvent(EventIdT eventId, Action<StateEvent<StateT, StateIdT>> action)
+        public void AddEvent(EventIdT eventId, Action<IStateEvent<StateT, StateIdT>> action)
         {
             if (StateEvents.ContainsKey(eventId))
             {

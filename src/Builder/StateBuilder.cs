@@ -17,7 +17,7 @@ namespace Cerberus.Builder
             _stateData = stateData;
         }
 
-        public StateBuilder<StateT, StateIdT, EventIdT, EndReturnT> AddEvent(EventIdT eventId, Action<StateEvent<StateT, StateIdT>> action)
+        public StateBuilder<StateT, StateIdT, EventIdT, EndReturnT> AddEvent(EventIdT eventId, Action<IStateEvent<StateT, StateIdT>> action)
         {
             _stateData.AddEvent(eventId, action);
             return this;

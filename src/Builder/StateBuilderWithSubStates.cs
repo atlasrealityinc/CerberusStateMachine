@@ -22,7 +22,7 @@ namespace Cerberus.Builder
             _stateHandlerTypes = stateHandlerTypes;
         }
 
-        public new StateBuilderWithSubStates<StateT, StateIdT, EventIdT, SubStateIdT, EndReturnT> AddEvent(EventIdT eventId, Action<StateEvent<StateT, StateIdT>> action)
+        public new StateBuilderWithSubStates<StateT, StateIdT, EventIdT, SubStateIdT, EndReturnT> AddEvent(EventIdT eventId, Action<IStateEvent<StateT, StateIdT>> action)
         {
             base.AddEvent(eventId, action);
             return this;
