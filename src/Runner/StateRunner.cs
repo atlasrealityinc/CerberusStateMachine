@@ -231,6 +231,12 @@ namespace Cerberus.Runner
                 ActiveSubState.Stop();
             }
 
+            //If calling Stop() on ActiveSubState causes us to exit this state, we do not want to call Start() on the next substate
+            if (ActiveInstance == null)
+            {
+                return;
+            }
+
             if (_subStateRunners.TryGetValue(stateId, out var nextSubStateRunner))
             {
                 ActiveSubState = nextSubStateRunner;
