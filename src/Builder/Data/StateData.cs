@@ -24,7 +24,7 @@ namespace Cerberus.Builder.Data
     }
 
     internal abstract class StateData<StateT, StateIdT> : StateData<StateIdT>
-        where StateT : State
+        where StateT : IState
         where StateIdT : Enum
     {
         public StateData(StateIdT stateId, IStateMachineContainer stateMachineContainer, Dictionary<Type, List<Type>> stateHandlerTypes) : base(stateId, stateMachineContainer, stateHandlerTypes)
@@ -34,7 +34,7 @@ namespace Cerberus.Builder.Data
     }
 
     internal class StateData<StateT, StateIdT, EventIdT> : StateData<StateT, StateIdT>
-        where StateT : State
+        where StateT : IState
         where StateIdT : Enum
         where EventIdT : Enum
     {
@@ -62,7 +62,7 @@ namespace Cerberus.Builder.Data
     }
 
     internal class StateData<StateT, StateIdT, EventIdT, SubStateIdT> : StateData<StateT, StateIdT, EventIdT>
-        where StateT : State
+        where StateT : IState
         where StateIdT : Enum
         where EventIdT : Enum
         where SubStateIdT : Enum

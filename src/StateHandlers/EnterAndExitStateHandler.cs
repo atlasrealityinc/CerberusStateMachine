@@ -1,13 +1,13 @@
 ﻿namespace Cerberus.StateHandlers
 {
-    internal class EnterAndExitStateHandler : IStateHandler<State>
+    internal class EnterAndExitStateHandler : IStateHandler<IState>
     {
-        public void OnEnterState(State stateInstance)
+        public void OnEnterState(IState stateInstance)
         {
             stateInstance.OnEnter();
         }
 
-        public void OnExitState(State stateInstance)
+        public void OnExitState(IState stateInstance)
         {
             stateInstance.OnExit();
         }

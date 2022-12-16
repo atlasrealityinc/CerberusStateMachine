@@ -72,7 +72,7 @@ namespace Cerberus.Builder
         }
 
         public StateBuilder<StateT, StateIdT, EventIdT, StateMachineBuilderWithStates<StateIdT>> State<StateT, EventIdT>(StateIdT stateId)
-            where StateT : State
+            where StateT : IState
             where EventIdT : Enum
         {
             if (_states.TryGetValue(stateId, out var exisitingStateRunner))
@@ -86,7 +86,7 @@ namespace Cerberus.Builder
         }
 
         public StateBuilderWithSubStates<StateT, StateIdT, EventIdT, SubStateIdT, StateMachineBuilderWithStates<StateIdT>> State<StateT, EventIdT, SubStateIdT>(StateIdT stateId)
-            where StateT : State
+            where StateT : IState
             where EventIdT : Enum
             where SubStateIdT : Enum
         {
@@ -102,7 +102,7 @@ namespace Cerberus.Builder
 
         public IStateMachine<StateIdT> Build()
         {
-            BaseAddStateHandler<State, EnterAndExitStateHandler>();
+            BaseAddStateHandler<IState, EnterAndExitStateHandler>();
             return new StateMachine<StateIdT>(_states, _stateMachineData);
         }
 

@@ -44,7 +44,7 @@ namespace Cerberus.Runner
     }
 
     internal abstract class StateRunner<StateT, StateIdT> : StateRunner<StateIdT>
-        where StateT : State
+        where StateT : IState
         where StateIdT : Enum
     {
         protected readonly IStateChanger<StateIdT> _stateChanger;
@@ -53,7 +53,7 @@ namespace Cerberus.Runner
         protected StateIdT _previousStateId;
 
         protected object[] _activeInstance = new object[1];
-        public StateT ActiveInstance
+        public IState ActiveInstance
         {
             get { return (StateT)_activeInstance[0]; }
             protected set
@@ -117,7 +117,7 @@ namespace Cerberus.Runner
     }
 
     internal class StateRunner<StateT, StateIdT, EventIdT> : StateRunner<StateT, StateIdT>
-        where StateT : State
+        where StateT : IState
         where StateIdT : Enum
         where EventIdT : Enum
     {
@@ -148,7 +148,7 @@ namespace Cerberus.Runner
     }
 
     internal class StateRunner<StateT, StateIdT, EventIdT, SubStateIdT> : StateRunner<StateT, StateIdT, EventIdT>, IStateChanger<SubStateIdT>
-        where StateT : State
+        where StateT : IState
         where StateIdT : Enum
         where EventIdT : Enum
         where SubStateIdT : Enum

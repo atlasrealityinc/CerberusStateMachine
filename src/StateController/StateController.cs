@@ -20,7 +20,7 @@ namespace Cerberus.StateController
     }
 
     internal class StateController<StateT, StateIdT, EventIdT, SubStateIdT> : StateController<EventIdT>, IStateController<EventIdT, SubStateIdT>
-        where StateT : State
+        where StateT : IState
         where StateIdT : Enum
         where EventIdT : Enum
         where SubStateIdT : Enum

@@ -6,7 +6,7 @@ using System.Collections.Generic;
 namespace Cerberus.Builder
 {
     public class StateBuilderWithSubStates<StateT, StateIdT, EventIdT, SubStateIdT, EndReturnT> : StateBuilder<StateT, StateIdT, EventIdT, EndReturnT>
-            where StateT : State
+            where StateT : IState
             where StateIdT : Enum
             where EventIdT : Enum
             where SubStateIdT : Enum
@@ -29,7 +29,7 @@ namespace Cerberus.Builder
         }
 
         public StateBuilder<SubStateT, SubStateIdT, SubEventIdT, StateBuilderWithSubStates<StateT, StateIdT, EventIdT, SubStateIdT, EndReturnT>> State<SubStateT, SubEventIdT>(SubStateIdT subStateId)
-            where SubStateT : State
+            where SubStateT : IState
             where SubEventIdT : Enum
         {
             var stateData = new StateData<SubStateT, SubStateIdT, SubEventIdT>(subStateId, _stateMachineContainer, _stateHandlerTypes);
@@ -38,7 +38,7 @@ namespace Cerberus.Builder
         }
 
         public StateBuilderWithSubStates<SubStateT, SubStateIdT, SubEventIdT, SubSubStateIdT, StateBuilderWithSubStates<StateT, StateIdT, EventIdT, SubStateIdT, EndReturnT>> State<SubStateT, SubEventIdT, SubSubStateIdT>(SubStateIdT subStateId)
-            where SubStateT : State
+            where SubStateT : IState
             where SubEventIdT : Enum
             where SubSubStateIdT : Enum
         {

@@ -4,7 +4,7 @@ using System;
 namespace Cerberus.Builder
 {
     public class StateBuilder<StateT, StateIdT, EventIdT, EndReturnT>
-        where StateT : State
+        where StateT : IState
         where StateIdT : Enum
         where EventIdT : Enum
     {

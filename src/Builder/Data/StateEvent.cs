@@ -4,7 +4,7 @@ using System;
 namespace Cerberus.Builder.Data
 {
     public interface IStateEvent<StateT, StateIdT>
-        where StateT : State
+        where StateT : IState
         where StateIdT : Enum
     {
         StateIdT PreviousStateId { get; }
@@ -14,14 +14,14 @@ namespace Cerberus.Builder.Data
     }
 
     internal class StateEvent<StateT, StateIdT> : IStateEvent<StateT, StateIdT>
-        where StateT : State
+        where StateT : IState
         where StateIdT : Enum
     {
         private readonly StateRunner<StateT, StateIdT> _stateRunner;
 
         public StateIdT PreviousStateId { get; }
 
-        public StateT StateInstance { get { return _stateRunner.ActiveInstance; } }
+        public StateT StateInstance { get { return (StateT)_stateRunner.ActiveInstance; } }
 
         internal StateEvent(StateRunner<StateT, StateIdT> stateRunner, StateIdT previousStateId)
         {
