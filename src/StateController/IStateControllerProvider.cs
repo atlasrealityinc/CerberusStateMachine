@@ -27,10 +27,20 @@ namespace Cerberus.StateController
         }
     }
 
-    public class StateControllerBindInfo<StateIdT> : BindInfo
+    /// <summary>
+    /// Non-generic access to the state id a controller belongs to, so controllers for different state id types can be indexed together.
+    /// </summary>
+    internal interface IStateControllerBindInfo
+    {
+        Enum StateId { get; }
+    }
+
+    public class StateControllerBindInfo<StateIdT> : BindInfo, IStateControllerBindInfo
         where StateIdT : Enum
     {
         public StateIdT State { get; }
+
+        Enum IStateControllerBindInfo.StateId => State;
 
         public StateControllerBindInfo(StateIdT stateId, object instance, Type[] contractTypes) : base(instance, contractTypes)
         {

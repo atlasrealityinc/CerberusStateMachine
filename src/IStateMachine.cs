@@ -7,6 +7,7 @@ namespace Cerberus
             where StateIdT : Enum
     {
         IStateControllerProvider StateControllerProvider { get; }
+        IStateController StateController { get; }
 
         void Start();
     }

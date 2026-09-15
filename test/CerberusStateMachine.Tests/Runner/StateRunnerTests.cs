@@ -542,5 +542,124 @@ namespace Cerberus.Tests.Runner
 
             Assert.IsTrue(parentBind.Instance is IStateController<TestEventId, TestSubStateId>);
         }
+        private StateRunner<TrackingState1, TestStateId, TestEventId, TestSubStateId> CreateRunnerWithSubStates(List<string> callLog)
+        {
+            var container = CreateContainer(callLog);
+            var handlerTypes = new Dictionary<Type, List<Type>>
+            {
+                { typeof(IState), new List<Type> { typeof(EnterAndExitStateHandler) } }
+            };
+            var stateData = new StateData<TrackingState1, TestStateId, TestEventId, TestSubStateId>(
+                TestStateId.State1, container, handlerTypes);
+            stateData.AddSubState(TestSubStateId.SubState1, new StateData<TrackingSubState1, TestSubStateId, TestSubEventId>(
+                TestSubStateId.SubState1, container, handlerTypes));
+            stateData.AddSubState(TestSubStateId.SubState2, new StateData<TrackingSubState2, TestSubStateId, TestSubEventId>(
+                TestSubStateId.SubState2, container, handlerTypes));
+            var stateChanger = Substitute.For<IStateChanger<TestStateId>>();
+            return new StateRunner<TrackingState1, TestStateId, TestEventId, TestSubStateId>(stateData, stateChanger);
+        }
+
+        [TestMethod]
+        public void Test_ActiveSubStateRunner_WithoutSubStates_ReturnsNull()
+        {
+            var callLog = new List<string>();
+            var container = CreateContainer(callLog);
+            var stateData = new StateData<TrackingState1, TestStateId, TestEventId>(
+                TestStateId.State1, container, new Dictionary<Type, List<Type>>());
+            var runner = new StateRunner<TrackingState1, TestStateId, TestEventId>(stateData, Substitute.For<IStateChanger<TestStateId>>());
+            runner.Start(TestStateId.State1);
+
+            Assert.IsNull(runner.ActiveSubStateRunner);
+        }
+
+        [TestMethod]
+        public void Test_ActiveSubStateRunner_WithSubStates_BeforeStart_ReturnsNull()
+        {
+            var runner = CreateRunnerWithSubStates(new List<string>());
+
+            Assert.IsNull(runner.ActiveSubStateRunner);
+        }
+
+        [TestMethod]
+        public void Test_ActiveSubStateRunner_WithSubStates_AfterStart_ReturnsActiveSubState()
+        {
+            var runner = CreateRunnerWithSubStates(new List<string>());
+
+            runner.Start(TestStateId.State1);
+
+            Assert.AreSame(runner.ActiveSubState, runner.ActiveSubStateRunner);
+            Assert.AreEqual(TestSubStateId.SubState1, runner.ActiveSubState.StateId);
+        }
+
+        [TestMethod]
+        public void Test_ActiveSubStateRunner_WithSubStates_AfterChangeState_ReturnsNewSubState()
+        {
+            var runner = CreateRunnerWithSubStates(new List<string>());
+            runner.Start(TestStateId.State1);
+
+            runner.ChangeState(TestSubStateId.SubState2);
+
+            Assert.AreSame(runner.ActiveSubState, runner.ActiveSubStateRunner);
+            Assert.AreEqual(TestSubStateId.SubState2, runner.ActiveSubState.StateId);
+        }
+
+        [TestMethod]
+        public void Test_ActiveSubStateRunner_WithSubStates_AfterStop_ReturnsNull()
+        {
+            var runner = CreateRunnerWithSubStates(new List<string>());
+            runner.Start(TestStateId.State1);
+
+            runner.Stop();
+
+            Assert.IsNull(runner.ActiveSubStateRunner);
+        }
+
+        [TestMethod]
+        public void Test_Runner_ImplementsEventTriggerOnlyForItsEventIdType()
+        {
+            var callLog = new List<string>();
+            var container = CreateContainer(callLog);
+            var stateData = new StateData<TrackingState1, TestStateId, TestEventId>(
+                TestStateId.State1, container, new Dictionary<Type, List<Type>>());
+            var runner = new StateRunner<TrackingState1, TestStateId, TestEventId>(stateData, Substitute.For<IStateChanger<TestStateId>>());
+
+            Assert.IsInstanceOfType<IStateRunner>(runner);
+            Assert.IsInstanceOfType<IEventTrigger<TestEventId>>(runner);
+            Assert.IsNotInstanceOfType<IEventTrigger<TestSubEventId>>(runner);
+        }
+
+        [TestMethod]
+        public void Test_EventTrigger_TriggerEvent_RegisteredEvent_InvokesActionAndReturnsTrue()
+        {
+            var callLog = new List<string>();
+            var container = CreateContainer(callLog);
+            var stateData = new StateData<TrackingState1, TestStateId, TestEventId>(
+                TestStateId.State1, container, new Dictionary<Type, List<Type>>());
+            var eventInvoked = false;
+            stateData.AddEvent(TestEventId.Event1, e => eventInvoked = true);
+            var runner = new StateRunner<TrackingState1, TestStateId, TestEventId>(stateData, Substitute.For<IStateChanger<TestStateId>>());
+            runner.Start(TestStateId.State1);
+
+            var handled = ((IEventTrigger<TestEventId>)runner).TriggerEvent(TestEventId.Event1);
+
+            Assert.IsTrue(handled);
+            Assert.IsTrue(eventInvoked);
+        }
+
+        [TestMethod]
+        public void Test_EventTrigger_TriggerEvent_WhenNotActive_ReturnsFalse()
+        {
+            var callLog = new List<string>();
+            var container = CreateContainer(callLog);
+            var stateData = new StateData<TrackingState1, TestStateId, TestEventId>(
+                TestStateId.State1, container, new Dictionary<Type, List<Type>>());
+            stateData.AddEvent(TestEventId.Event1, e => { });
+            var runner = new StateRunner<TrackingState1, TestStateId, TestEventId>(stateData, Substitute.For<IStateChanger<TestStateId>>());
+
+            var handled = ((IEventTrigger<TestEventId>)runner).TriggerEvent(TestEventId.Event1);
+
+            Assert.IsFalse(handled);
+        }
+
     }
 }

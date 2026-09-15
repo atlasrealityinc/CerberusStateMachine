@@ -3,6 +3,20 @@ using System;
 
 namespace Cerberus.StateController
 {
+    internal class StateController : IStateController
+    {
+        public StateController()
+        {
+            
+        }
+        
+        public bool TriggerEvent<EventIdT>(EventIdT eventId)
+            where EventIdT : Enum
+        {
+            throw new NotImplementedException();
+        }
+    }
+
     internal class StateController<EventIdT> : IStateController<EventIdT>
             where EventIdT : Enum
     {

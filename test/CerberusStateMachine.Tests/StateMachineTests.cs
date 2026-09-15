@@ -6,6 +6,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using NSubstitute;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Cerberus.Tests
 {
@@ -264,5 +265,334 @@ namespace Cerberus.Tests
                 Console.WriteLine("2: Failed");
             }
         }
+        [TestMethod]
+        public void Test_Constructor_SetsStateController()
+        {
+            var callLog = new List<string>();
+            var container = CreateContainer(callLog);
+            var handlerTypes = new Dictionary<Type, List<Type>>();
+            var stateData = new Dictionary<TestStateId, StateData<TestStateId>>
+            {
+                { TestStateId.State1, new StateData<TrackingState1, TestStateId, TestEventId>(TestStateId.State1, container, handlerTypes) }
+            };
+
+            var sm = BuildStateMachine(stateData);
+
+            Assert.IsNotNull(sm.StateController);
+        }
+
+        [TestMethod]
+        public void Test_StateController_TriggerEvent_SharedEventType_TriggersSubStateThenParent()
+        {
+            var log = new List<string>();
+            var stateMachine = new StateMachineBuilder<TestStateId>()
+                .State<NoOpState, TestEventId, TestSubStateId>(TestStateId.State1)
+                    .AddEvent(TestEventId.Event1, e => log.Add("State1"))
+                    .State<NoOpState, TestEventId>(TestSubStateId.SubState1)
+                        .AddEvent(TestEventId.Event1, e => log.Add("SubState1"))
+                        .End()
+                    .End()
+                .Build();
+            stateMachine.Start();
+
+            var handled = stateMachine.StateController.TriggerEvent(TestEventId.Event1);
+
+            Assert.IsTrue(handled);
+            CollectionAssert.AreEqual(new[] { "SubState1", "State1" }, log);
+        }
+
+        [TestMethod]
+        public void Test_StateController_TriggerEvent_ThreeLevels_TriggersInnermostToOutermost()
+        {
+            var log = new List<string>();
+            var stateMachine = new StateMachineBuilder<TestStateId>()
+                .State<NoOpState, TestEventId, TestSubStateId>(TestStateId.State1)
+                    .AddEvent(TestEventId.Event1, e => log.Add("State1"))
+                    .State<NoOpState, TestEventId, TestGrandchildStateId>(TestSubStateId.SubState1)
+                        .AddEvent(TestEventId.Event1, e => log.Add("SubState1"))
+                        .State<NoOpState, TestEventId>(TestGrandchildStateId.GrandchildState1)
+                            .AddEvent(TestEventId.Event1, e => log.Add("GrandchildState1"))
+                            .End()
+                        .End()
+                    .End()
+                .Build();
+            stateMachine.Start();
+
+            stateMachine.StateController.TriggerEvent(TestEventId.Event1);
+
+            CollectionAssert.AreEqual(new[] { "GrandchildState1", "SubState1", "State1" }, log);
+        }
+
+        [TestMethod]
+        public void Test_StateController_TriggerEvent_DifferentEventTypesPerLevel_TriggersOnlyMatchingLevel()
+        {
+            var log = new List<string>();
+            var stateMachine = new StateMachineBuilder<TestStateId>()
+                .State<NoOpState, TestEventId, TestSubStateId>(TestStateId.State1)
+                    .AddEvent(TestEventId.Event1, e => log.Add("State1"))
+                    .State<NoOpState, TestSubEventId>(TestSubStateId.SubState1)
+                        .AddEvent(TestSubEventId.SubEvent1, e => log.Add("SubState1"))
+                        .End()
+                    .End()
+                .Build();
+            stateMachine.Start();
+
+            var subHandled = stateMachine.StateController.TriggerEvent(TestSubEventId.SubEvent1);
+            var parentHandled = stateMachine.StateController.TriggerEvent(TestEventId.Event1);
+
+            Assert.IsTrue(subHandled);
+            Assert.IsTrue(parentHandled);
+            CollectionAssert.AreEqual(new[] { "SubState1", "State1" }, log);
+        }
+
+        [TestMethod]
+        public void Test_StateController_TriggerEvent_MachineLevelEvent_TriggeredAfterStates()
+        {
+            var log = new List<string>();
+            var stateMachine = new StateMachineBuilder<TestStateId, TestEventId>()
+                .AddEvent(TestEventId.Event1, e => log.Add("Machine"))
+                .AddEvent(TestEventId.Event2, e => log.Add("MachineOnly"))
+                .State<NoOpState, TestEventId>(TestStateId.State1)
+                    .AddEvent(TestEventId.Event1, e => log.Add("State1"))
+                    .End()
+                .Build();
+            stateMachine.Start();
+
+            var sharedHandled = stateMachine.StateController.TriggerEvent(TestEventId.Event1);
+            var machineOnlyHandled = stateMachine.StateController.TriggerEvent(TestEventId.Event2);
+
+            Assert.IsTrue(sharedHandled);
+            Assert.IsTrue(machineOnlyHandled);
+            CollectionAssert.AreEqual(new[] { "State1", "Machine", "MachineOnly" }, log);
+        }
+
+        [TestMethod]
+        public void Test_StateController_TriggerEvent_OnlyActiveTopLevelStateIsTriggered()
+        {
+            var log = new List<string>();
+            var stateMachine = new StateMachineBuilder<TestStateId>()
+                .State<NoOpState, TestEventId>(TestStateId.State1)
+                    .AddEvent(TestEventId.Event1, e => log.Add("State1"))
+                    .End()
+                .State<NoOpState, TestEventId>(TestStateId.State2)
+                    .AddEvent(TestEventId.Event1, e => log.Add("State2"))
+                    .End()
+                .Build();
+            stateMachine.Start();
+
+            stateMachine.StateController.TriggerEvent(TestEventId.Event1);
+
+            CollectionAssert.AreEqual(new[] { "State1" }, log);
+        }
+
+        [TestMethod]
+        public void Test_StateController_TriggerEvent_UnhandledEvent_ReturnsFalse()
+        {
+            var stateMachine = new StateMachineBuilder<TestStateId>()
+                .State<NoOpState, TestEventId>(TestStateId.State1)
+                    .AddEvent(TestEventId.Event1, e => { })
+                    .End()
+                .Build();
+            stateMachine.Start();
+
+            Assert.IsFalse(stateMachine.StateController.TriggerEvent(TestEventId.Event2));
+            Assert.IsFalse(stateMachine.StateController.TriggerEvent(TestSubEventId.SubEvent1));
+        }
+
+        [TestMethod]
+        public void Test_StateController_TriggerEvent_BeforeStart_ReturnsFalse()
+        {
+            var log = new List<string>();
+            var stateMachine = new StateMachineBuilder<TestStateId>()
+                .State<NoOpState, TestEventId>(TestStateId.State1)
+                    .AddEvent(TestEventId.Event1, e => log.Add("State1"))
+                    .End()
+                .Build();
+
+            var handled = stateMachine.StateController.TriggerEvent(TestEventId.Event1);
+
+            Assert.IsFalse(handled);
+            Assert.AreEqual(0, log.Count);
+        }
+
+        [TestMethod]
+        public void Test_StateController_TriggerEvent_BeforeStart_StillTriggersMachineLevelEvents()
+        {
+            var log = new List<string>();
+            var stateMachine = new StateMachineBuilder<TestStateId, TestEventId>()
+                .AddEvent(TestEventId.Event1, e => log.Add("Machine"))
+                .State<NoOpState, TestEventId>(TestStateId.State1)
+                    .AddEvent(TestEventId.Event1, e => log.Add("State1"))
+                    .End()
+                .Build();
+
+            var handled = stateMachine.StateController.TriggerEvent(TestEventId.Event1);
+
+            Assert.IsTrue(handled);
+            CollectionAssert.AreEqual(new[] { "Machine" }, log);
+        }
+
+        [TestMethod]
+        public void Test_StateController_TriggerEvent_SubStateHandlerExitsParent_ParentHandlerNotInvoked()
+        {
+            var log = new List<string>();
+            IStateMachine<TestStateId> stateMachine = null;
+            stateMachine = new StateMachineBuilder<TestStateId>()
+                .State<NoOpState, TestEventId, TestSubStateId>(TestStateId.State1)
+                    .AddEvent(TestEventId.Event1, e => log.Add("State1"))
+                    .State<NoOpState, TestEventId>(TestSubStateId.SubState1)
+                        .AddEvent(TestEventId.Event1, e =>
+                        {
+                            log.Add("SubState1");
+                            ((StateMachine<TestStateId>)stateMachine).ChangeState(TestStateId.State2);
+                        })
+                        .End()
+                    .End()
+                .State<NoOpState, TestEventId>(TestStateId.State2)
+                    .AddEvent(TestEventId.Event2, e => log.Add("State2"))
+                    .End()
+                .Build();
+            stateMachine.Start();
+
+            var handled = stateMachine.StateController.TriggerEvent(TestEventId.Event1);
+            //Proves the machine is now in State2, and that State2 was not offered Event1 above
+            stateMachine.StateController.TriggerEvent(TestEventId.Event2);
+
+            Assert.IsTrue(handled);
+            CollectionAssert.AreEqual(new[] { "SubState1", "State2" }, log);
+        }
+
+        [TestMethod]
+        public void Test_StateController_TriggerEvent_SubStateHandlerChangesSubState_NewSubStateNotTriggered()
+        {
+            var log = new List<string>();
+            var stateMachine = new StateMachineBuilder<TestStateId>()
+                .State<NoOpState, TestEventId, TestSubStateId>(TestStateId.State1)
+                    .AddEvent(TestEventId.Event1, e => log.Add("State1"))
+                    .State<NoOpState, TestEventId>(TestSubStateId.SubState1)
+                        .AddEvent(TestEventId.Event1, e =>
+                        {
+                            log.Add("SubState1");
+                            e.ChangeState(TestSubStateId.SubState2);
+                        })
+                        .End()
+                    .State<NoOpState, TestEventId>(TestSubStateId.SubState2)
+                        .AddEvent(TestEventId.Event1, e => log.Add("SubState2"))
+                        .End()
+                    .End()
+                .Build();
+            stateMachine.Start();
+
+            stateMachine.StateController.TriggerEvent(TestEventId.Event1);
+
+            CollectionAssert.AreEqual(new[] { "SubState1", "State1" }, log);
+        }
+
+        [TestMethod]
+        public void Test_StateController_TriggerEvent_WalkDoesNotAllocate()
+        {
+            var stateMachine = new StateMachineBuilder<TestStateId, TestEventId>()
+                .AddEvent(TestEventId.Event1, e => { })
+                .State<NoOpState, TestEventId, TestSubStateId>(TestStateId.State1)
+                    .AddEvent(TestEventId.Event1, e => { })
+                    .State<NoOpState, TestEventId, TestGrandchildStateId>(TestSubStateId.SubState1)
+                        .AddEvent(TestEventId.Event1, e => { })
+                        .State<NoOpState, TestEventId>(TestGrandchildStateId.GrandchildState1)
+                            .AddEvent(TestEventId.Event1, e => { })
+                            .End()
+                        .End()
+                    .End()
+                .Build();
+            stateMachine.Start();
+            //Warm up so JIT compilation and generic instantiation are not measured.
+            //Event3 is registered nowhere, so the measurement covers the walk over all four levels and
+            //excludes the per-event context objects the runners allocate for handlers that actually run.
+            stateMachine.StateController.TriggerEvent(TestEventId.Event3);
+            stateMachine.StateController.TriggerEvent(TestEventId.Event3);
+
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            var handled = stateMachine.StateController.TriggerEvent(TestEventId.Event3);
+            var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+            Assert.IsFalse(handled);
+            Assert.AreEqual(0L, allocated);
+        }
+
+        [TestMethod]
+        public void Test_StateControllerProvider_ParentAndSubStatesShareEventIdType_BuildsAndEachControllerRetrievable()
+        {
+            var log = new List<string>();
+            var stateMachine = new StateMachineBuilder<TestStateId>()
+                .State<NoOpState, TestEventId, TestSubStateId>(TestStateId.State1)
+                    .AddEvent(TestEventId.Event1, e => log.Add("State1"))
+                    .State<NoOpState, TestEventId>(TestSubStateId.SubState1)
+                        .AddEvent(TestEventId.Event1, e => log.Add("SubState1"))
+                        .End()
+                    .State<NoOpState, TestEventId>(TestSubStateId.SubState2)
+                        .AddEvent(TestEventId.Event1, e => log.Add("SubState2"))
+                        .End()
+                    .End()
+                .Build();
+            stateMachine.Start();
+
+            var parent = stateMachine.StateControllerProvider
+                .GetStateController<IStateController<TestEventId, TestSubStateId>, TestStateId, TestEventId>(TestStateId.State1);
+            var subState1 = stateMachine.StateControllerProvider
+                .GetStateController<IStateController<TestEventId>, TestSubStateId, TestEventId>(TestSubStateId.SubState1);
+            var subState2 = stateMachine.StateControllerProvider
+                .GetStateController<IStateController<TestEventId>, TestSubStateId, TestEventId>(TestSubStateId.SubState2);
+            var parentHandled = parent.TriggerEvent(TestEventId.Event1);
+            var subState1Handled = subState1.TriggerEvent(TestEventId.Event1);
+            var subState2Handled = subState2.TriggerEvent(TestEventId.Event1);
+
+            Assert.IsTrue(parentHandled);
+            Assert.IsTrue(subState1Handled);
+            Assert.IsFalse(subState2Handled, "SubState2 is not active so its controller must not handle the event");
+            Assert.AreEqual(TestSubStateId.SubState1, parent.CurrentSubState);
+            CollectionAssert.AreEqual(new[] { "State1", "SubState1" }, log);
+        }
+
+        [TestMethod]
+        public void Test_StateControllerProvider_WithSubStates_EnumeratesEveryController()
+        {
+            var stateMachine = new StateMachineBuilder<TestStateId>()
+                .State<NoOpState, TestEventId, TestSubStateId>(TestStateId.State1)
+                    .State<NoOpState, TestEventId>(TestSubStateId.SubState1)
+                        .End()
+                    .State<NoOpState, TestEventId>(TestSubStateId.SubState2)
+                        .End()
+                    .End()
+                .State<NoOpState, TestEventId>(TestStateId.State2)
+                    .End()
+                .Build();
+
+            var all = stateMachine.StateControllerProvider.StateControllers.ToList();
+            var topLevel = stateMachine.StateControllerProvider.GetStateControllers<TestStateId>().Select(b => b.State).ToList();
+            var subStates = stateMachine.StateControllerProvider.GetStateControllers<TestSubStateId>().Select(b => b.State).ToList();
+
+            Assert.AreEqual(4, all.Count);
+            CollectionAssert.AreEquivalent(new[] { TestStateId.State1, TestStateId.State2 }, topLevel);
+            CollectionAssert.AreEquivalent(new[] { TestSubStateId.SubState1, TestSubStateId.SubState2 }, subStates);
+        }
+
+        [TestMethod]
+        public void Test_StateControllerProvider_SameSubStateEnumUnderTwoParents_BuildsAndLookupIsAmbiguous()
+        {
+            var stateMachine = new StateMachineBuilder<TestStateId>()
+                .State<NoOpState, TestEventId, TestSubStateId>(TestStateId.State1)
+                    .State<NoOpState, TestEventId>(TestSubStateId.SubState1)
+                        .End()
+                    .End()
+                .State<NoOpState, TestEventId, TestSubStateId>(TestStateId.State2)
+                    .State<NoOpState, TestEventId>(TestSubStateId.SubState1)
+                        .End()
+                    .End()
+                .Build();
+
+            Assert.AreEqual(4, stateMachine.StateControllerProvider.StateControllers.Count());
+            Assert.ThrowsExactly<ArgumentException>(() => stateMachine.StateControllerProvider
+                .GetStateController<IStateController<TestEventId>, TestSubStateId, TestEventId>(TestSubStateId.SubState1));
+        }
+
     }
 }

@@ -7,7 +7,7 @@ using System.Linq;
 
 namespace Cerberus.Runner
 {
-    internal abstract class StateRunner<StateIdT>
+    internal abstract class StateRunner<StateIdT> : IStateRunner
             where StateIdT : Enum
     {
         protected readonly IStateMachineContainer _container;
@@ -28,6 +28,8 @@ namespace Cerberus.Runner
             }
         }
         public StateIdT StateId { get; }
+
+        public virtual IStateRunner ActiveSubStateRunner => null;
 
         protected StateRunner(StateData<StateIdT> stateData)
         {
@@ -116,7 +118,7 @@ namespace Cerberus.Runner
         }
     }
 
-    internal class StateRunner<StateT, StateIdT, EventIdT> : StateRunner<StateT, StateIdT>
+    internal class StateRunner<StateT, StateIdT, EventIdT> : StateRunner<StateT, StateIdT>, IEventTrigger<EventIdT>
         where StateT : IState
         where StateIdT : Enum
         where EventIdT : Enum
@@ -157,6 +159,8 @@ namespace Cerberus.Runner
 
         public SubStateIdT DefaultSubStateId { get; }
         public StateRunner<SubStateIdT> ActiveSubState { get; private set; }
+
+        public override IStateRunner ActiveSubStateRunner => ActiveSubState;
 
         public override BindInfo[] BindInfo
         {

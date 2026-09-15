@@ -15,6 +15,8 @@ namespace Cerberus
 
         public IStateControllerProvider StateControllerProvider { get; }
 
+        public IStateController StateController { get; }
+
         private StateRunner<StateIdT> _activeState = null;
         private bool _isRunning = false;
 
@@ -27,9 +29,9 @@ namespace Cerberus
             _stateRunners = stateData.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.Build(this));
             var stateMachineRunner = stateMachineData?.Build(this);
             StateControllerProvider = new StateMachineStateControllerProvider<StateIdT>(
-                _stateRunners
-                    .ToDictionary(kvp => (Enum)kvp.Key, kvp => kvp.Value.BindInfo.ToDictionary(bindInfo => bindInfo.ContractTypes[0].GetGenericArguments()[0], bindInfo => bindInfo)),
+                _stateRunners.Values.SelectMany(stateRunner => stateRunner.BindInfo),
                 stateMachineRunner);
+            StateController = new StateMachineStateController(() => _activeState, stateMachineRunner);
             _defaultStateId = _stateRunners.First().Key;
         }
 

@@ -2,6 +2,11 @@
 
 namespace Cerberus
 {
+    public interface IStateController
+    {
+        bool TriggerEvent<EventIdT>(EventIdT eventId) where EventIdT : Enum;
+    }
+    
     public interface IStateController<EventIdT>
         where EventIdT : Enum
     {

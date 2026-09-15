@@ -6,12 +6,15 @@ using System.Linq;
 
 namespace Cerberus.Runner
 {
-    internal class StateMachineRunner<StateIdT>
+    internal class StateMachineRunner<StateIdT> : IStateRunner
     {
         public virtual BindInfo BindInfo => null;
+
+        //Machine-level events have no sub-states, the walk ends here
+        public IStateRunner ActiveSubStateRunner => null;
     }
 
-    internal class StateMachineRunner<StateIdT, EventIdT> : StateMachineRunner<StateIdT>
+    internal class StateMachineRunner<StateIdT, EventIdT> : StateMachineRunner<StateIdT>, IEventTrigger<EventIdT>
         where StateIdT : Enum
         where EventIdT : Enum
     {
@@ -52,6 +55,11 @@ namespace Cerberus.Runner
         protected object CreateStateController()
         {
             return new StateController<EventIdT>(TriggerEvent);
+        }
+
+        bool IEventTrigger<EventIdT>.TriggerEvent(EventIdT eventId)
+        {
+            return TriggerEvent(eventId);
         }
     }
 }
