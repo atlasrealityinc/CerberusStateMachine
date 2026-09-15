@@ -25,10 +25,11 @@ namespace Cerberus
                 throw new ArgumentException("You must have states in order to build the state machine!");
             }
             _stateRunners = stateData.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.Build(this));
+            var stateMachineRunner = stateMachineData?.Build(this);
             StateControllerProvider = new StateMachineStateControllerProvider<StateIdT>(
                 _stateRunners
                     .ToDictionary(kvp => (Enum)kvp.Key, kvp => kvp.Value.BindInfo.ToDictionary(bindInfo => bindInfo.ContractTypes[0].GetGenericArguments()[0], bindInfo => bindInfo)),
-                stateMachineData?.Build(this));
+                stateMachineRunner);
             _defaultStateId = _stateRunners.First().Key;
         }
 

@@ -85,7 +85,7 @@ namespace Cerberus.Runner
                         var stateHandlerInstance = _container.Resolve(stateHandler);
                         _stateHandlerInstances.Push(stateHandlerInstance);
                         stateHandlerInstance.GetType().GetMethod("OnEnterState", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance).Invoke(stateHandlerInstance, _activeInstance);
-                        if(ActiveInstance == null)
+                        if (ActiveInstance == null)
                         {
                             //Calling the OnEnterState can result in the state changing, so if the state changes and Stop() is called (And the ActiveInstance becomes null) we stop
                             return;
@@ -167,7 +167,10 @@ namespace Cerberus.Runner
                     var instance = CreateStateController();
                     var instanceType = instance.GetType();
                     _bindInfo = new BindInfo[] { new StateControllerBindInfo<StateIdT>(StateId, instance, instanceType.GetInterfaces()) };
-                    _bindInfo = ConcatArrays(_bindInfo, _subStateRunners.SelectMany(sr => sr.Value.BindInfo).ToArray());
+                    if (_subStateRunners.Count > 0)
+                    {
+                        _bindInfo = ConcatArrays(_bindInfo, _subStateRunners.SelectMany(sr => sr.Value.BindInfo).ToArray());
+                    }
                 }
                 return _bindInfo;
             }

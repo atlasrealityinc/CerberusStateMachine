@@ -1,3 +1,4 @@
+using Cerberus.Builder;
 using Cerberus.Builder.Data;
 using Cerberus.IoC;
 using Cerberus.Tests.TestHelpers;
@@ -207,6 +208,61 @@ namespace Cerberus.Tests
             sm.Start();
 
             Assert.AreEqual("State2:Enter", callLog[0]);
+        }
+
+        private enum TestState
+        {
+            StateOne,
+            StateTwo
+        }
+
+        public enum TestStateEvents
+        {
+            TestEvent
+        }
+
+        private class TestStateOne : State
+        {
+            public override void OnEnter()
+            {
+                Console.WriteLine("TestStateOne: Enter");
+            }
+        }
+
+        private class TestStateTwo : State
+        {
+            public override void OnEnter()
+            {
+                Console.WriteLine("TestStateTwo: Enter");
+            }
+        }
+
+        [TestMethod]
+        public void TestMultipleOfSameEventType()
+        {
+            var stateMachine = new StateMachineBuilder<TestState>()
+                .State<TestStateOne, TestStateEvents>(TestState.StateOne)
+                    .AddEvent(TestStateEvents.TestEvent, (e) => e.ChangeState(TestState.StateTwo))
+                    .End()
+                .State<TestStateTwo, TestStateEvents>(TestState.StateTwo)
+                    .AddEvent(TestStateEvents.TestEvent, (e) => e.ChangeState(TestState.StateOne))
+                    .End()
+                .Build();
+
+            stateMachine.Start();
+            var stateOneController = stateMachine.StateControllerProvider.GetStateController<IStateController<TestStateEvents>, TestState, TestStateEvents>(TestState.StateOne);
+            var stateTwoController = stateMachine.StateControllerProvider.GetStateController<IStateController<TestStateEvents>, TestState, TestStateEvents>(TestState.StateTwo);
+
+            var success = stateOneController.TriggerEvent(TestStateEvents.TestEvent);
+            if(!success)
+            {
+                Console.WriteLine("1: Failed");
+            }
+            success = stateTwoController.TriggerEvent(TestStateEvents.TestEvent);
+            if(!success)
+            {
+                Console.WriteLine("2: Failed");
+            }
         }
     }
 }
