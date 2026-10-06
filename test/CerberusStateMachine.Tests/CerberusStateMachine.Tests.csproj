@@ -4,6 +4,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Cerberus.Tests</RootNamespace>
     <IsPackable>false</IsPackable>
+    <!-- The suite keeps exercising the deprecated per-state controller API until it is removed, see docs/DEPRECATED.md -->
+    <NoWarn>$(NoWarn);CS0618</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

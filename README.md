@@ -19,7 +19,7 @@ A fluent, type-safe state machine framework for .NET. Cerberus provides a builde
 - **Fluent Builder API** - Define your state machine with a clean, chainable syntax
 - **Type-Safe** - States, events, and transitions are all strongly typed using enums and generics
 - **Event-Driven Transitions** - State changes are triggered through events with rich context
-- **Unified Event Triggering** - One controller can trigger an event of any type and deliver it to every active state, innermost first, without allocating
+- **Unified Event Triggering** - A single `StateController` per state machine triggers an event of any type and delivers it to every active state, innermost first, without allocating
 - **Hierarchical Sub-States** - Nest state machines within states to any depth
 - **State Handlers** - Observe state lifecycle events with custom handlers
 - **Dependency Injection** - Plug in your own IoC container for state and handler resolution
@@ -67,14 +67,9 @@ IStateMachine<GameState> stateMachine = new StateMachineBuilder<GameState, GameE
 // 4. Start the state machine (enters the first defined state)
 stateMachine.Start();
 
-// 5. Trigger events via state controllers
-var controller = stateMachine.StateControllerProvider
-    .GetStateController<IStateController<GameEvent>, GameState, GameEvent>(GameState.Idle);
-
-controller.TriggerEvent(GameEvent.Start); // Transitions from Idle -> Playing
-
-// Or trigger through the state machine's single controller, which finds the active state for you
-stateMachine.StateController.TriggerEvent(GameEvent.Lose); // Transitions from Playing -> GameOver
+// 5. Trigger events through the state machine's controller, which delivers them to the active state
+stateMachine.StateController.TriggerEvent(GameEvent.Start); // Transitions from Idle -> Playing
+stateMachine.StateController.TriggerEvent(GameEvent.Lose);  // Transitions from Playing -> GameOver
 ```
 
 ## Defining States
@@ -303,16 +298,17 @@ Sub-states can have their own sub-states, allowing arbitrarily deep hierarchies:
     .End()
 ```
 
-### Querying the Current Sub-State
+### Triggering Events on Sub-States
 
-When retrieving a state controller for a state with sub-states, use `IStateController<EventIdT, SubStateIdT>` to access the current sub-state:
+You do not need to know which sub-state is active to trigger an event on it. The state machine's `StateController` offers the event to the innermost active sub-state first, then to its parent, then to machine-level events:
 
 ```csharp
-var controller = stateMachine.StateControllerProvider
-    .GetStateController<IStateController<AppEvent, InGameState>, AppState, AppEvent>(AppState.InGame);
-
-InGameState currentSubState = controller.CurrentSubState;
+// With AppState.InGame active and InGameState.Exploring as its active sub-state:
+stateMachine.StateController.TriggerEvent(InGameEvent.Pause); // Handled by Exploring, transitions to Paused
+stateMachine.StateController.TriggerEvent(AppEvent.Quit);     // Skips the sub-state (different event enum), handled by InGame, transitions to Menu
 ```
+
+See [State Controllers](#state-controllers) for the full delivery rules.
 
 ## State Handlers
 
@@ -371,42 +367,23 @@ new StateMachineBuilder<MyState>()
 
 ## State Controllers
 
-After building and starting a state machine, you interact with it at runtime through **state controllers**. Controllers let you trigger events on specific states from outside the state machine.
+After building and starting a state machine, you interact with it at runtime through its **state controller**. Every `IStateMachine<StateIdT>` exposes a single `StateController` that is not tied to a particular state or event type, so there is nothing to look up: you trigger an event and the state machine delivers it to whichever states are currently active.
 
-### Retrieving a Controller
+### Triggering Events
 
-Use the `StateControllerProvider` on the built state machine:
+Call `TriggerEvent()` with any event enum value. It returns `true` if the event was handled:
 
 ```csharp
 IStateMachine<GameState> stateMachine = /* ... build and start ... */;
 
-// Get a controller for a specific state
-var idleController = stateMachine.StateControllerProvider
-    .GetStateController<IStateController<GameEvent>, GameState, GameEvent>(GameState.Idle);
+bool handled = stateMachine.StateController.TriggerEvent(GameEvent.Start);
 ```
 
-Sub-state controllers are retrieved the same way, using the sub-state's own id and event type:
+Only states that are currently active handle the event. Triggering an event that no active state has registered returns `false` and does nothing.
 
-```csharp
-var exploringController = stateMachine.StateControllerProvider
-    .GetStateController<IStateController<InGameEvent>, InGameState, InGameEvent>(InGameState.Exploring);
-```
+### How Events Are Delivered
 
-If the same sub-state id and event type are registered under more than one parent state, that lookup is ambiguous and throws an `ArgumentException`. Use the state machine's single `StateController` (below) in that case.
-
-### Triggering Events
-
-Call `TriggerEvent()` on the controller. It returns `true` if the event was handled:
-
-```csharp
-bool handled = idleController.TriggerEvent(GameEvent.Start);
-```
-
-Events are only handled if the associated state is currently active.
-
-### Triggering Events Without a Specific Controller
-
-Every state machine also exposes a single `StateController` that is not tied to a particular state or event type. It offers the event to every state that is currently active, starting at the innermost active sub-state and working outward to the top-level state, and finally to any machine-level events:
+The event is offered to every state that is currently active, starting at the innermost active sub-state and working outward to the top-level state, and finally to any machine-level events:
 
 ```csharp
 IStateMachine<AppState> stateMachine = /* ... build and start ... */;
@@ -420,30 +397,11 @@ The rules it follows:
 - At each level the event is only offered to a state whose event enum matches the type of the value passed in. A state that uses a different event enum is skipped.
 - Every matching level is offered the event, even when an inner level has already handled it. `TriggerEvent` returns `true` if any level handled it.
 - The set of active states is captured before any handler runs. If a handler causes a transition, states entered by that transition are not offered the same event, and states exited by it no longer handle it.
-- The controller itself allocates nothing per call. The only allocations are the event context objects passed to handlers that actually run, exactly as when triggering through a per-state controller.
+- The controller itself allocates nothing per call. The only allocations are the event context objects passed to handlers that actually run.
 
-This is an alternative to the per-state controllers above, which remain available and behave as before.
+### Deprecated: Per-State Controllers
 
-### Enumerating Controllers
-
-You can retrieve all controllers for a given state enum type:
-
-```csharp
-var controllers = stateMachine.StateControllerProvider.GetStateControllers<GameState>();
-
-foreach (var controllerInfo in controllers)
-{
-    GameState state = controllerInfo.State;
-    object instance = controllerInfo.Instance;
-    Type[] contractTypes = controllerInfo.ContractTypes;
-}
-```
-
-Or retrieve all controllers regardless of state type:
-
-```csharp
-IEnumerable<BindInfo> allControllers = stateMachine.StateControllerProvider.StateControllers;
-```
+Earlier versions triggered events by looking up a controller for one specific state through `IStateMachine<StateIdT>.StateControllerProvider` and the `IStateController<EventIdT>` / `IStateController<EventIdT, SubStateIdT>` interfaces, with `BindInfo` and `StateControllerBindInfo<StateIdT>` describing them. That API still works but is marked `[Obsolete]` and raises compiler warning CS0618. Reading a parent state's current sub-state through `CurrentSubState` is currently only possible through it. Its full documentation and a migration guide are in [docs/DEPRECATED.md](docs/DEPRECATED.md#per-state-controllers).
 
 ## Dependency Injection
 

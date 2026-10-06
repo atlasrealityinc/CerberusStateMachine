@@ -1,22 +1,9 @@
-﻿using Cerberus.Runner;
+#pragma warning disable CS0618 // Implements the deprecated per-state controller API, see docs/DEPRECATED.md
+using Cerberus.Runner;
 using System;
 
 namespace Cerberus.StateController
 {
-    internal class StateController : IStateController
-    {
-        public StateController()
-        {
-            
-        }
-        
-        public bool TriggerEvent<EventIdT>(EventIdT eventId)
-            where EventIdT : Enum
-        {
-            throw new NotImplementedException();
-        }
-    }
-
     internal class StateController<EventIdT> : IStateController<EventIdT>
             where EventIdT : Enum
     {

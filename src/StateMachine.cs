@@ -13,7 +13,9 @@ namespace Cerberus
         protected readonly IDictionary<StateIdT, StateRunner<StateIdT>> _stateRunners;
         protected readonly StateIdT _defaultStateId;
 
+#pragma warning disable CS0618 // Backs the deprecated per-state controller API, see docs/DEPRECATED.md
         public IStateControllerProvider StateControllerProvider { get; }
+#pragma warning restore CS0618
 
         public IStateController StateController { get; }
 

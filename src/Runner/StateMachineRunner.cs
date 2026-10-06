@@ -8,7 +8,9 @@ namespace Cerberus.Runner
 {
     internal class StateMachineRunner<StateIdT> : IStateRunner
     {
+#pragma warning disable CS0618 // Backs the deprecated per-state controller API, see docs/DEPRECATED.md
         public virtual BindInfo BindInfo => null;
+#pragma warning restore CS0618
 
         //Machine-level events have no sub-states, the walk ends here
         public IStateRunner ActiveSubStateRunner => null;
@@ -21,6 +23,7 @@ namespace Cerberus.Runner
         private readonly IStateChanger<StateIdT> _stateChanger;
         protected readonly Dictionary<EventIdT, Action<StateMachineEvent<StateIdT>>> _events;
 
+#pragma warning disable CS0618 // Backs the deprecated per-state controller API, see docs/DEPRECATED.md
         private BindInfo _bindInfo = null;
         public override BindInfo BindInfo
         {
@@ -35,6 +38,7 @@ namespace Cerberus.Runner
                 return _bindInfo;
             }
         }
+#pragma warning restore CS0618
 
         public StateMachineRunner(StateMachineData<StateIdT> stateMachineData, IStateChanger<StateIdT> stateChanger)
         {

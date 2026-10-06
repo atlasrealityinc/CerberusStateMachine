@@ -1,4 +1,5 @@
-﻿using Cerberus.Runner;
+﻿#pragma warning disable CS0618 // Implements the deprecated per-state controller API, see docs/DEPRECATED.md
+using Cerberus.Runner;
 using System;
 using System.Collections.Generic;
 using System.Linq;

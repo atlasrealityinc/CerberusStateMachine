@@ -1,8 +1,15 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace Cerberus.StateController
 {
+    /// <summary>
+    /// Looks up controllers bound to individual states.
+    /// </summary>
+    /// <remarks>
+    /// Deprecated. Use <see cref="IStateMachine{StateIdT}.StateController"/> instead, which needs no lookup, see docs/DEPRECATED.md.
+    /// </remarks>
+    [Obsolete("Deprecated: use IStateMachine<StateIdT>.StateController.TriggerEvent(eventId) instead, it triggers the event on whichever states are active. See docs/DEPRECATED.md in the CerberusStateMachine repository for a migration guide.")]
     public interface IStateControllerProvider
     {
         T GetStateController<T, StateIdT, EventIdT>(StateIdT stateId)
@@ -15,6 +22,13 @@ namespace Cerberus.StateController
             where StateIdT : Enum;
     }
 
+    /// <summary>
+    /// Describes a per-state controller instance and the interfaces it implements.
+    /// </summary>
+    /// <remarks>
+    /// Deprecated along with <see cref="IStateControllerProvider"/>, see docs/DEPRECATED.md.
+    /// </remarks>
+    [Obsolete("Deprecated: only used by the deprecated IStateControllerProvider. Use IStateMachine<StateIdT>.StateController instead, see docs/DEPRECATED.md in the CerberusStateMachine repository for a migration guide.")]
     public class BindInfo
     {
         public Type[] ContractTypes { get; }
@@ -35,6 +49,13 @@ namespace Cerberus.StateController
         Enum StateId { get; }
     }
 
+    /// <summary>
+    /// A <see cref="BindInfo"/> that also records the state id the controller is bound to.
+    /// </summary>
+    /// <remarks>
+    /// Deprecated along with <see cref="IStateControllerProvider"/>, see docs/DEPRECATED.md.
+    /// </remarks>
+    [Obsolete("Deprecated: only used by the deprecated IStateControllerProvider. Use IStateMachine<StateIdT>.StateController instead, see docs/DEPRECATED.md in the CerberusStateMachine repository for a migration guide.")]
     public class StateControllerBindInfo<StateIdT> : BindInfo, IStateControllerBindInfo
         where StateIdT : Enum
     {

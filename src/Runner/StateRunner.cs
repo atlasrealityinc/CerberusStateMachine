@@ -13,6 +13,7 @@ namespace Cerberus.Runner
         protected readonly IStateMachineContainer _container;
         protected readonly Dictionary<Type, List<Type>> _stateHandlerTypes;
 
+#pragma warning disable CS0618 // Backs the deprecated per-state controller API, see docs/DEPRECATED.md
         protected BindInfo[] _bindInfo = null;
         public virtual BindInfo[] BindInfo
         {
@@ -27,6 +28,7 @@ namespace Cerberus.Runner
                 return _bindInfo;
             }
         }
+#pragma warning restore CS0618
         public StateIdT StateId { get; }
 
         public virtual IStateRunner ActiveSubStateRunner => null;
@@ -162,6 +164,7 @@ namespace Cerberus.Runner
 
         public override IStateRunner ActiveSubStateRunner => ActiveSubState;
 
+#pragma warning disable CS0618 // Backs the deprecated per-state controller API, see docs/DEPRECATED.md
         public override BindInfo[] BindInfo
         {
             get
@@ -179,6 +182,7 @@ namespace Cerberus.Runner
                 return _bindInfo;
             }
         }
+#pragma warning restore CS0618
 
         public StateRunner(StateData<StateT, StateIdT, EventIdT, SubStateIdT> stateData, IStateChanger<StateIdT> stateChanger) : base(stateData, stateChanger)
         {
