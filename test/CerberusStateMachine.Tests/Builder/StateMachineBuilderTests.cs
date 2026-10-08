@@ -186,5 +186,33 @@ namespace Cerberus.Tests.Builder
 
             Assert.IsNotNull(sm);
         }
+
+        [TestMethod]
+        public void Test_MachineLevelBuilder_AddEvent_DuplicateEventId_ThrowsArgumentException()
+        {
+            var builder = new StateMachineBuilder<TestStateId, TestMachineEventId>()
+                .AddEvent(TestMachineEventId.MachineEvent1, e => { });
+
+            Assert.ThrowsExactly<ArgumentException>(() => builder.AddEvent(TestMachineEventId.MachineEvent1, e => { }));
+        }
+
+        [TestMethod]
+        public void Test_Builders_NonEnumEventType_RegistersAndBuilds()
+        {
+            var sm = new StateMachineBuilder<TestStateId, string>()
+                .AddEvent("machine", e => { })
+                .State<NoOpState, string>(TestStateId.State1)
+                    .AddEvent("state", e => { })
+                    .End()
+                .State<NoOpState, string, TestSubStateId>(TestStateId.State2)
+                    .AddEvent("parent", e => { })
+                    .State<NoOpState, string>(TestSubStateId.SubState1)
+                        .AddEvent("sub", e => { })
+                        .End()
+                    .End()
+                .Build();
+
+            Assert.IsNotNull(sm);
+        }
     }
 }

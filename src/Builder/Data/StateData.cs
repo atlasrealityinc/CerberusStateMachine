@@ -36,7 +36,6 @@ namespace Cerberus.Builder.Data
     internal class StateData<StateT, StateIdT, EventIdT> : StateData<StateT, StateIdT>
         where StateT : IState
         where StateIdT : Enum
-        where EventIdT : Enum
     {
         public Dictionary<EventIdT, Action<IStateEvent<StateT, StateIdT>>> StateEvents { get; } = new Dictionary<EventIdT, Action<IStateEvent<StateT, StateIdT>>>();
 
@@ -47,6 +46,11 @@ namespace Cerberus.Builder.Data
 
         public void AddEvent(EventIdT eventId, Action<IStateEvent<StateT, StateIdT>> action)
         {
+            if (eventId == null)
+            {
+                throw new ArgumentNullException(nameof(eventId));
+            }
+
             if (StateEvents.ContainsKey(eventId))
             {
                 throw new ArgumentException($"Could not add event with id {eventId}. An event with the same id already exists");
@@ -64,7 +68,6 @@ namespace Cerberus.Builder.Data
     internal class StateData<StateT, StateIdT, EventIdT, SubStateIdT> : StateData<StateT, StateIdT, EventIdT>
         where StateT : IState
         where StateIdT : Enum
-        where EventIdT : Enum
         where SubStateIdT : Enum
     {
         public Dictionary<SubStateIdT, StateData<SubStateIdT>> SubStateData { get; } = new Dictionary<SubStateIdT, StateData<SubStateIdT>>();

@@ -25,7 +25,7 @@ namespace Cerberus.Tests.Runner
         public void Test_Typed_BindInfo_ReturnsNonNull()
         {
             var data = new StateMachineData<TestStateId, TestMachineEventId>();
-            data.StateMachineEvents.Add(TestMachineEventId.MachineEvent1, e => { });
+            data.AddEvent(TestMachineEventId.MachineEvent1, e => { });
             var stateChanger = Substitute.For<IStateChanger<TestStateId>>();
 
             var runner = data.Build(stateChanger);
@@ -38,7 +38,7 @@ namespace Cerberus.Tests.Runner
         {
             var data = new StateMachineData<TestStateId, TestMachineEventId>();
             var eventInvoked = false;
-            data.StateMachineEvents.Add(TestMachineEventId.MachineEvent1, e => { eventInvoked = true; });
+            data.AddEvent(TestMachineEventId.MachineEvent1, e => { eventInvoked = true; });
             var stateChanger = Substitute.For<IStateChanger<TestStateId>>();
             var runner = (StateMachineRunner<TestStateId, TestMachineEventId>)data.Build(stateChanger);
 
@@ -103,7 +103,7 @@ namespace Cerberus.Tests.Runner
         {
             var data = new StateMachineData<TestStateId, TestMachineEventId>();
             var eventInvoked = false;
-            data.StateMachineEvents.Add(TestMachineEventId.MachineEvent1, e => { eventInvoked = true; });
+            data.AddEvent(TestMachineEventId.MachineEvent1, e => { eventInvoked = true; });
             var runner = (IEventTrigger<TestMachineEventId>)data.Build(Substitute.For<IStateChanger<TestStateId>>());
 
             var result = runner.TriggerEvent(TestMachineEventId.MachineEvent1);

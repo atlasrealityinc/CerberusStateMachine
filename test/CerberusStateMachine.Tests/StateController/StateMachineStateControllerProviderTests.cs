@@ -299,5 +299,18 @@ namespace Cerberus.Tests.StateController
                     TestStateId.State1));
         }
 
+
+        [TestMethod]
+        public void Test_GetStateController_NonEnumEventIdType_ReturnsCorrectController()
+        {
+            var controller = Substitute.For<IStateController<string>>();
+            var stateControllers = CreateStateControllers(
+                (TestStateId.State1, typeof(string), controller));
+            var provider = new StateMachineStateControllerProvider<TestStateId>(stateControllers, null);
+
+            var result = provider.GetStateController<IStateController<string>, TestStateId, string>(TestStateId.State1);
+
+            Assert.AreSame(controller, result);
+        }
     }
 }

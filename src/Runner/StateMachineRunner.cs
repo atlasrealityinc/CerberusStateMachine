@@ -2,7 +2,6 @@
 using Cerberus.StateController;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace Cerberus.Runner
 {
@@ -18,7 +17,6 @@ namespace Cerberus.Runner
 
     internal class StateMachineRunner<StateIdT, EventIdT> : StateMachineRunner<StateIdT>, IEventTrigger<EventIdT>
         where StateIdT : Enum
-        where EventIdT : Enum
     {
         private readonly IStateChanger<StateIdT> _stateChanger;
         protected readonly Dictionary<EventIdT, Action<StateMachineEvent<StateIdT>>> _events;
@@ -40,9 +38,10 @@ namespace Cerberus.Runner
         }
 #pragma warning restore CS0618
 
-        public StateMachineRunner(StateMachineData<StateIdT> stateMachineData, IStateChanger<StateIdT> stateChanger)
+        public StateMachineRunner(StateMachineData<StateIdT, EventIdT> stateMachineData, IStateChanger<StateIdT> stateChanger)
         {
-            _events = stateMachineData.StateMachineEvents?.ToDictionary(kvp => (EventIdT)kvp.Key, kvp => kvp.Value) ?? new Dictionary<EventIdT, Action<StateMachineEvent<StateIdT>>>();
+            //Copied so that registrations made on the builder after Build() do not reach a running machine
+            _events = new Dictionary<EventIdT, Action<StateMachineEvent<StateIdT>>>(stateMachineData.StateMachineEvents);
             _stateChanger = stateChanger;
         }
 

@@ -20,8 +20,14 @@ namespace Cerberus.StateController
         }
 
         public bool TriggerEvent<EventIdT>(EventIdT eventId)
-            where EventIdT : Enum
         {
+            //A plain "eventId == null" boxes value types in unoptimized code (Debug builds, tier-0 JIT), which allocates.
+            //Checking the type first keeps value types off that path entirely, and boxing a reference type is a no-op.
+            if (!typeof(EventIdT).IsValueType && eventId == null)
+            {
+                throw new ArgumentNullException(nameof(eventId));
+            }
+
             var handled = TriggerInnermostFirst(_getActiveStateRunner.Invoke(), eventId);
             //Machine-level events are the outermost scope, so they are offered the event last
             handled |= TriggerInnermostFirst(_stateMachineRunner, eventId);
@@ -29,7 +35,6 @@ namespace Cerberus.StateController
         }
 
         private static bool TriggerInnermostFirst<EventIdT>(IStateRunner runner, EventIdT eventId)
-            where EventIdT : Enum
         {
             if (runner == null)
             {

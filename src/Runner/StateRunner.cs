@@ -123,7 +123,6 @@ namespace Cerberus.Runner
     internal class StateRunner<StateT, StateIdT, EventIdT> : StateRunner<StateT, StateIdT>, IEventTrigger<EventIdT>
         where StateT : IState
         where StateIdT : Enum
-        where EventIdT : Enum
     {
         protected readonly Dictionary<EventIdT, Action<IStateEvent<StateT, StateIdT>>> _events;
 
@@ -154,7 +153,6 @@ namespace Cerberus.Runner
     internal class StateRunner<StateT, StateIdT, EventIdT, SubStateIdT> : StateRunner<StateT, StateIdT, EventIdT>, IStateChanger<SubStateIdT>
         where StateT : IState
         where StateIdT : Enum
-        where EventIdT : Enum
         where SubStateIdT : Enum
     {
         protected readonly Dictionary<SubStateIdT, StateRunner<SubStateIdT>> _subStateRunners;

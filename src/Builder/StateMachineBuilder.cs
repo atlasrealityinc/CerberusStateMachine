@@ -8,8 +8,9 @@ namespace Cerberus.Builder
 {
     public class StateMachineBuilder<StateIdT, EventIdT> : StateMachineBuilder<StateIdT>
             where StateIdT : Enum
-            where EventIdT : Enum
     {
+        private readonly StateMachineData<StateIdT, EventIdT> _typedStateMachineData;
+
         public StateMachineBuilder() : this(new DefaultStateMachineContainer())
         {
 
@@ -17,12 +18,13 @@ namespace Cerberus.Builder
 
         public StateMachineBuilder(IStateMachineContainer stateMachineContainer) : base(stateMachineContainer, () => new StateMachineData<StateIdT, EventIdT>())
         {
-
+            //The base constructor has already run the factory above, so this cast cannot fail
+            _typedStateMachineData = (StateMachineData<StateIdT, EventIdT>)_stateMachineData;
         }
 
         public StateMachineBuilder<StateIdT, EventIdT> AddEvent(EventIdT eventId, Action<StateMachineEvent<StateIdT>> action)
         {
-            _stateMachineData.StateMachineEvents.Add(eventId, action);
+            _typedStateMachineData.AddEvent(eventId, action);
             return this;
         }
     }
@@ -73,7 +75,6 @@ namespace Cerberus.Builder
 
         public StateBuilder<StateT, StateIdT, EventIdT, StateMachineBuilderWithStates<StateIdT>> State<StateT, EventIdT>(StateIdT stateId)
             where StateT : IState
-            where EventIdT : Enum
         {
             if (_states.TryGetValue(stateId, out var exisitingStateRunner))
             {
@@ -87,7 +88,6 @@ namespace Cerberus.Builder
 
         public StateBuilderWithSubStates<StateT, StateIdT, EventIdT, SubStateIdT, StateMachineBuilderWithStates<StateIdT>> State<StateT, EventIdT, SubStateIdT>(StateIdT stateId)
             where StateT : IState
-            where EventIdT : Enum
             where SubStateIdT : Enum
         {
             if (_states.TryGetValue(stateId, out var existingStateData))

@@ -299,5 +299,49 @@ namespace Cerberus.Tests.StateController
 
             CollectionAssert.AreEqual(new[] { "Root" }, callLog);
         }
+
+        /// <summary>
+        /// A runner whose event id type is string, showing the walk works for non-enum event id types.
+        /// </summary>
+        private static IStateRunner CreateStringRunner(List<string> callLog, string name, bool handles, IStateRunner activeSubStateRunner = null)
+        {
+            var runner = Substitute.For<IStateRunner, IEventTrigger<string>>();
+            runner.ActiveSubStateRunner.Returns(activeSubStateRunner);
+            ((IEventTrigger<string>)runner).TriggerEvent(Arg.Any<string>()).Returns(ci =>
+            {
+                callLog.Add($"{name}:{ci.Arg<string>()}");
+                return handles;
+            });
+            return runner;
+        }
+
+        [TestMethod]
+        public void Test_TriggerEvent_StringEventIdType_ReachesOnlyStringLevels_InnermostFirst()
+        {
+            var callLog = new List<string>();
+            var grandchild = CreateStringRunner(callLog, "Grandchild", true);
+            var child = CreateRunner(callLog, "Child", true, grandchild);
+            var root = CreateStringRunner(callLog, "Root", false, child);
+            var machine = CreateStringRunner(callLog, "Machine", true);
+            var controller = new StateMachineStateController(() => root, machine);
+
+            var handled = controller.TriggerEvent("go");
+
+            Assert.IsTrue(handled);
+            CollectionAssert.AreEqual(new[] { "Grandchild:go", "Root:go", "Machine:go" }, callLog);
+        }
+
+        [TestMethod]
+        public void Test_TriggerEvent_NullReferenceTypeEventId_ThrowsArgumentNullException_WithoutWalking()
+        {
+            var callLog = new List<string>();
+            var root = CreateStringRunner(callLog, "Root", true);
+            var controller = new StateMachineStateController(() => root, null);
+
+            var ex = Assert.ThrowsExactly<ArgumentNullException>(() => controller.TriggerEvent<string>(null));
+
+            Assert.AreEqual("eventId", ex.ParamName);
+            Assert.AreEqual(0, callLog.Count);
+        }
     }
 }

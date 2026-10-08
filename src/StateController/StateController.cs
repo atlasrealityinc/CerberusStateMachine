@@ -5,7 +5,6 @@ using System;
 namespace Cerberus.StateController
 {
     internal class StateController<EventIdT> : IStateController<EventIdT>
-            where EventIdT : Enum
     {
         private readonly Func<EventIdT, bool> _onTriggerEvent;
 
@@ -23,7 +22,6 @@ namespace Cerberus.StateController
     internal class StateController<StateT, StateIdT, EventIdT, SubStateIdT> : StateController<EventIdT>, IStateController<EventIdT, SubStateIdT>
         where StateT : IState
         where StateIdT : Enum
-        where EventIdT : Enum
         where SubStateIdT : Enum
     {
         private readonly StateRunner<StateT, StateIdT, EventIdT, SubStateIdT> _stateRunner;

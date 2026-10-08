@@ -10,11 +10,11 @@ namespace Cerberus
     public interface IStateController
     {
         /// <summary>
-        /// Offers <paramref name="eventId"/> to every active state whose event enum is <typeparamref name="EventIdT"/>,
+        /// Offers <paramref name="eventId"/> to every active state whose event id type is <typeparamref name="EventIdT"/>,
         /// innermost sub-state first, then to machine-level events of that type.
         /// </summary>
         /// <returns>True if any level handled the event.</returns>
-        bool TriggerEvent<EventIdT>(EventIdT eventId) where EventIdT : Enum;
+        bool TriggerEvent<EventIdT>(EventIdT eventId);
     }
 
     /// <summary>
@@ -25,7 +25,6 @@ namespace Cerberus
     /// </remarks>
     [Obsolete("Deprecated: per-state controllers are replaced by IStateMachine<StateIdT>.StateController, which triggers events on the active state hierarchy. See docs/DEPRECATED.md in the CerberusStateMachine repository for a migration guide.")]
     public interface IStateController<EventIdT>
-        where EventIdT : Enum
     {
         bool TriggerEvent(EventIdT eventId);
     }
@@ -40,7 +39,6 @@ namespace Cerberus
     /// </remarks>
     [Obsolete("Deprecated: per-state controllers are replaced by IStateMachine<StateIdT>.StateController. CurrentSubState has no direct replacement, see docs/DEPRECATED.md in the CerberusStateMachine repository for a migration guide.")]
     public interface IStateController<EventIdT, SubStateIdT> : IStateController<EventIdT>
-        where EventIdT : Enum
         where SubStateIdT : Enum
     {
         SubStateIdT CurrentSubState { get; }

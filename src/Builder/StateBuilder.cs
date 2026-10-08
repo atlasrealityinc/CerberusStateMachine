@@ -6,7 +6,6 @@ namespace Cerberus.Builder
     public class StateBuilder<StateT, StateIdT, EventIdT, EndReturnT>
         where StateT : IState
         where StateIdT : Enum
-        where EventIdT : Enum
     {
         protected readonly EndReturnT _endReturnObject;
         private readonly StateData<StateT, StateIdT, EventIdT> _stateData;

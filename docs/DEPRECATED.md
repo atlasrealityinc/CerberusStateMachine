@@ -22,7 +22,7 @@ Before the state machine had a single controller, triggering an event meant firs
 ### Why it is deprecated
 
 - **You had to know which state was active.** A per-state controller only handles an event while its own state is active; triggering on any other controller silently returns `false`. Callers ended up tracking the active state themselves just to pick the right controller.
-- **Sub-state lookups could be ambiguous.** Controllers are keyed by state id and event enum type. If the same sub-state enum is used under more than one parent state, looking up a sub-state controller throws an `ArgumentException` because there is no way to tell which parent's sub-state is meant.
+- **Sub-state lookups could be ambiguous.** Controllers are keyed by state id and event id type. If the same sub-state enum is used under more than one parent state, looking up a sub-state controller throws an `ArgumentException` because there is no way to tell which parent's sub-state is meant.
 - **It needed a type-heavy call.** `GetStateController<IStateController<EventIdT>, StateIdT, EventIdT>(stateId)` repeats information the state machine already has.
 
 `IStateMachine<StateIdT>.StateController` removes all three problems: one call offers the event to every currently active state, innermost sub-state first, then machine-level events, and it allocates nothing per call.
@@ -61,13 +61,13 @@ Most code migrates without observable change, but the two paths are not identica
 
 | | Per-state controller (deprecated) | `IStateMachine.StateController` |
 |---|---|---|
-| Which states see the event | Only the one state the controller is bound to, and only while it is active | Every currently active state whose event enum matches, innermost first, then machine-level events |
+| Which states see the event | Only the one state the controller is bound to, and only while it is active | Every currently active state whose event id type matches, innermost first, then machine-level events |
 | Return value | `true` if that one state handled it | `true` if any level handled it |
 | Inactive state | Returns `false` | Not applicable, inactive states are never offered the event |
 | Ambiguous sub-state ids | Lookup throws `ArgumentException` | Never ambiguous, the active hierarchy is walked |
 | Allocation per call | None in the controller itself | None in the controller itself |
 
-The one case that behaves differently in practice: with per-state controllers, a parent and its active sub-state that **share an event enum** only ran the handler of whichever controller you called. The unified controller offers the event to both (sub-state first) and both handlers run. If you relied on triggering only the parent's handler while the sub-state also registered the same event id, revisit that event design.
+The one case that behaves differently in practice: with per-state controllers, a parent and its active sub-state that **share an event id type** only ran the handler of whichever controller you called. The unified controller offers the event to both (sub-state first) and both handlers run. If you relied on triggering only the parent's handler while the sub-state also registered the same event id, revisit that event design.
 
 ### Querying the Current Sub-State
 
@@ -98,7 +98,7 @@ var idleController = stateMachine.StateControllerProvider
     .GetStateController<IStateController<GameEvent>, GameState, GameEvent>(GameState.Idle);
 ```
 
-`GetStateController<T, StateIdT, EventIdT>(stateId)` throws an `ArgumentException` when no controller exists for the state id, when none exists for that event enum type, or when the controller found does not implement `T`.
+`GetStateController<T, StateIdT, EventIdT>(stateId)` throws an `ArgumentException` when no controller exists for the state id, when none exists for that event id type, or when the controller found does not implement `T`.
 
 ### Sub-State Controllers
 

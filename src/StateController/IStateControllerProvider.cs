@@ -14,8 +14,7 @@ namespace Cerberus.StateController
     {
         T GetStateController<T, StateIdT, EventIdT>(StateIdT stateId)
             where T : IStateController<EventIdT>
-            where StateIdT : Enum
-            where EventIdT : Enum;
+            where StateIdT : Enum;
 
         IEnumerable<BindInfo> StateControllers { get; }
         IEnumerable<StateControllerBindInfo<StateIdT>> GetStateControllers<StateIdT>()

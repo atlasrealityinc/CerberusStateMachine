@@ -63,7 +63,6 @@ namespace Cerberus.StateController
         public T GetStateController<T, StateIdT, EventIdT>(StateIdT stateId)
             where T : IStateController<EventIdT>
             where StateIdT : Enum
-            where EventIdT : Enum
         {
             if (_stateControllersByStateId.TryGetValue(stateId, out var stateControllersByEventIdType))
             {

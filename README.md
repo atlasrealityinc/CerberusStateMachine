@@ -17,7 +17,7 @@ A fluent, type-safe state machine framework for .NET. Cerberus provides a builde
 ## Features
 
 - **Fluent Builder API** - Define your state machine with a clean, chainable syntax
-- **Type-Safe** - States, events, and transitions are all strongly typed using enums and generics
+- **Type-Safe** - States, events, and transitions are all strongly typed through generics. State ids are enums; event ids can be enums or any other type
 - **Event-Driven Transitions** - State changes are triggered through events with rich context
 - **Unified Event Triggering** - A single `StateController` per state machine triggers an event of any type and delivers it to every active state, innermost first, without allocating
 - **Hierarchical Sub-States** - Nest state machines within states to any depth
@@ -244,6 +244,35 @@ new StateMachineBuilder<GameState, GameEvent>()
 
 Machine-level event handlers receive a `StateMachineEvent<StateIdT>` which provides `ChangeState()`.
 
+### Event Id Types
+
+Event ids are usually enums, but any type works: `string`, `int`, a `struct`, a `class`, a `record`, or an interface. The event id type is whatever you pass as `EventIdT` to `State<StateT, EventIdT>()` or `StateMachineBuilder<StateIdT, EventIdT>`. State ids still have to be enums.
+
+```csharp
+public enum GameState { Idle, Playing }
+
+IStateMachine<GameState> stateMachine = new StateMachineBuilder<GameState, string>()
+    .AddEvent("reset", e => e.ChangeState(GameState.Idle))
+    .State<IdleState, string>(GameState.Idle)
+        .AddEvent("start", e => e.ChangeState(GameState.Playing))
+        .End()
+    .State<PlayingState, string>(GameState.Playing)
+        .End()
+    .Build();
+
+stateMachine.Start();
+stateMachine.StateController.TriggerEvent("start");
+stateMachine.StateController.TriggerEvent("reset");
+```
+
+A few rules follow from how events are matched to states:
+
+- **The type argument must be exactly the type the state was declared with.** `TriggerEvent` infers `EventIdT` from the static type of the value you pass. An `int` literal does not reach a state declared with `long`, a concrete instance does not reach a state declared with its interface or base class, and an enum value does not reach a state declared with the nullable enum. When in doubt, pass the type argument explicitly: `TriggerEvent<IMyEvent>(myEvent)`.
+- **Equality decides which handler runs.** Lookups use `EqualityComparer<EventIdT>.Default`. Strings and records compare by value. A class without `Equals` and `GetHashCode` overrides compares by reference, so register and trigger with the same instance. A `struct` should implement `IEquatable<T>` and override `GetHashCode`, otherwise every lookup boxes it and `TriggerEvent` is no longer allocation-free.
+- **`null` is not a valid event id.** `AddEvent` and `TriggerEvent` throw `ArgumentNullException`.
+
+If you implement `IStateController` or `IStateControllerProvider` yourself instead of using the ones the state machine provides, remove any `where EventIdT : Enum` constraint from your `TriggerEvent` / `GetStateController`. Implementations must match the interface, which no longer has that constraint.
+
 ## Hierarchical State Machines (Sub-States)
 
 States can contain their own nested state machines. This is useful for modeling complex behaviors where a high-level state has its own internal states and transitions.
@@ -305,7 +334,7 @@ You do not need to know which sub-state is active to trigger an event on it. The
 ```csharp
 // With AppState.InGame active and InGameState.Exploring as its active sub-state:
 stateMachine.StateController.TriggerEvent(InGameEvent.Pause); // Handled by Exploring, transitions to Paused
-stateMachine.StateController.TriggerEvent(AppEvent.Quit);     // Skips the sub-state (different event enum), handled by InGame, transitions to Menu
+stateMachine.StateController.TriggerEvent(AppEvent.Quit);     // Skips the sub-state (different event type), handled by InGame, transitions to Menu
 ```
 
 See [State Controllers](#state-controllers) for the full delivery rules.
@@ -371,7 +400,7 @@ After building and starting a state machine, you interact with it at runtime thr
 
 ### Triggering Events
 
-Call `TriggerEvent()` with any event enum value. It returns `true` if the event was handled:
+Call `TriggerEvent()` with any event id value. It returns `true` if the event was handled:
 
 ```csharp
 IStateMachine<GameState> stateMachine = /* ... build and start ... */;
@@ -394,7 +423,7 @@ bool handled = stateMachine.StateController.TriggerEvent(InGameEvent.Pause);
 
 The rules it follows:
 
-- At each level the event is only offered to a state whose event enum matches the type of the value passed in. A state that uses a different event enum is skipped.
+- At each level the event is only offered to a state whose event id type matches the type argument of the call, which is inferred from the value passed in. A state that uses a different event id type is skipped. See [Event Id Types](#event-id-types).
 - Every matching level is offered the event, even when an inner level has already handled it. `TriggerEvent` returns `true` if any level handled it.
 - The set of active states is captured before any handler runs. If a handler causes a transition, states entered by that transition are not offered the same event, and states exited by it no longer handle it.
 - The controller itself allocates nothing per call. The only allocations are the event context objects passed to handlers that actually run.
