@@ -22,6 +22,17 @@ namespace Cerberus.Builder
             return this;
         }
 
+        /// <summary>
+        /// Registers a handler that runs when a triggered event id satisfies <paramref name="predicate"/>.
+        /// A key-based event for the same value wins over predicates, otherwise the first registered
+        /// predicate that returns true wins. The handler can read the matched value from <c>e.EventId</c>.
+        /// </summary>
+        public StateBuilder<StateT, StateIdT, EventIdT, EndReturnT> AddEvent(Func<EventIdT, bool> predicate, Action<IStateEvent<StateT, StateIdT, EventIdT>> action)
+        {
+            _stateData.AddEvent(predicate, action);
+            return this;
+        }
+
         public EndReturnT End()
         {
             return _endReturnObject;

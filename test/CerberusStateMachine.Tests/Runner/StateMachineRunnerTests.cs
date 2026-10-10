@@ -4,6 +4,7 @@ using Cerberus.Tests.TestHelpers;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using NSubstitute;
 using System;
+using System.Collections.Generic;
 
 namespace Cerberus.Tests.Runner
 {
@@ -121,5 +122,131 @@ namespace Cerberus.Tests.Runner
             Assert.IsFalse(runner.TriggerEvent(TestMachineEventId.MachineEvent1));
         }
 
+
+        #region predicate events
+
+        [TestMethod]
+        public void Test_EventTrigger_PredicateMatches_InvokesActionWithEventId_ReturnsTrue()
+        {
+            var data = new StateMachineData<TestStateId, TestFlagEventId>();
+            var invoked = false;
+            var received = default(TestFlagEventId);
+            data.AddEvent(e => e.IsOn, e => { invoked = true; received = e.EventId; });
+            var runner = (IEventTrigger<TestFlagEventId>)data.Build(Substitute.For<IStateChanger<TestStateId>>());
+
+            var triggered = new TestFlagEventId(true, 7);
+            var handled = runner.TriggerEvent(triggered);
+
+            Assert.IsTrue(handled);
+            Assert.IsTrue(invoked);
+            Assert.AreEqual(triggered, received);
+        }
+
+        [TestMethod]
+        public void Test_EventTrigger_PredicateDoesNotMatch_ReturnsFalse()
+        {
+            var data = new StateMachineData<TestStateId, TestFlagEventId>();
+            var invoked = false;
+            data.AddEvent(e => e.IsOn, e => invoked = true);
+            var runner = (IEventTrigger<TestFlagEventId>)data.Build(Substitute.For<IStateChanger<TestStateId>>());
+
+            Assert.IsFalse(runner.TriggerEvent(TestFlagEventId.Off));
+            Assert.IsFalse(invoked);
+        }
+
+        [TestMethod]
+        public void Test_EventTrigger_KeyAndPredicateBothMatch_OnlyKeyBasedHandlerRuns_PredicateNotEvaluated()
+        {
+            var data = new StateMachineData<TestStateId, TestFlagEventId>();
+            var log = new List<string>();
+            data.AddEvent(e => { log.Add("predicate-checked"); return e.IsOn; }, e => log.Add("predicate"));
+            data.AddEvent(TestFlagEventId.On, e => log.Add("key"));
+            var runner = (IEventTrigger<TestFlagEventId>)data.Build(Substitute.For<IStateChanger<TestStateId>>());
+
+            Assert.IsTrue(runner.TriggerEvent(TestFlagEventId.On));
+            CollectionAssert.AreEqual(new[] { "key" }, log);
+        }
+
+        [TestMethod]
+        public void Test_EventTrigger_KeyDoesNotMatch_MatchingPredicateRuns()
+        {
+            var data = new StateMachineData<TestStateId, TestFlagEventId>();
+            var log = new List<string>();
+            data.AddEvent(TestFlagEventId.On, e => log.Add("key"));
+            data.AddEvent(e => e.IsOn, e => log.Add($"predicate:{e.EventId.Amount}"));
+            var runner = (IEventTrigger<TestFlagEventId>)data.Build(Substitute.For<IStateChanger<TestStateId>>());
+
+            Assert.IsTrue(runner.TriggerEvent(new TestFlagEventId(true, 5)));
+            CollectionAssert.AreEqual(new[] { "predicate:5" }, log);
+        }
+
+        [TestMethod]
+        public void Test_EventTrigger_TwoPredicatesMatch_OnlyFirstRegisteredRuns_SecondNotEvaluated()
+        {
+            var data = new StateMachineData<TestStateId, TestFlagEventId>();
+            var log = new List<string>();
+            data.AddEvent(e => e.IsOn, e => log.Add("first"));
+            data.AddEvent(e => { log.Add("second-checked"); return e.IsOn; }, e => log.Add("second"));
+            var runner = (IEventTrigger<TestFlagEventId>)data.Build(Substitute.For<IStateChanger<TestStateId>>());
+
+            Assert.IsTrue(runner.TriggerEvent(TestFlagEventId.On));
+            CollectionAssert.AreEqual(new[] { "first" }, log);
+        }
+
+        [TestMethod]
+        public void Test_EventTrigger_FirstPredicateFalseSecondTrue_SecondRuns()
+        {
+            var data = new StateMachineData<TestStateId, TestFlagEventId>();
+            var log = new List<string>();
+            data.AddEvent(e => e.IsOn, e => log.Add("on"));
+            data.AddEvent(e => !e.IsOn, e => log.Add("off"));
+            var runner = (IEventTrigger<TestFlagEventId>)data.Build(Substitute.For<IStateChanger<TestStateId>>());
+
+            Assert.IsTrue(runner.TriggerEvent(TestFlagEventId.Off));
+            CollectionAssert.AreEqual(new[] { "off" }, log);
+        }
+
+        [TestMethod]
+        public void Test_EventTrigger_PredicateEventContext_ChangeStateDelegatesToStateChanger()
+        {
+            var data = new StateMachineData<TestStateId, TestFlagEventId>();
+            var stateChanger = Substitute.For<IStateChanger<TestStateId>>();
+            StateMachineEvent<TestStateId, TestFlagEventId> context = null;
+            data.AddEvent(e => true, e => context = e);
+            var runner = (IEventTrigger<TestFlagEventId>)data.Build(stateChanger);
+
+            runner.TriggerEvent(TestFlagEventId.On);
+            context.ChangeState(TestStateId.State2);
+
+            Assert.AreEqual(TestFlagEventId.On, context.EventId);
+            stateChanger.Received(1).ChangeState(TestStateId.State2);
+        }
+
+        [TestMethod]
+        public void Test_EventTrigger_PredicateWithNullAction_CountsAsHandled()
+        {
+            var data = new StateMachineData<TestStateId, TestFlagEventId>();
+            data.AddEvent(e => true, null);
+            var runner = (IEventTrigger<TestFlagEventId>)data.Build(Substitute.For<IStateChanger<TestStateId>>());
+
+            Assert.IsTrue(runner.TriggerEvent(TestFlagEventId.On));
+        }
+
+        [TestMethod]
+        public void Test_DeprecatedController_ReachesPredicateEvents()
+        {
+            var data = new StateMachineData<TestStateId, TestFlagEventId>();
+            var invoked = false;
+            data.AddEvent(e => e.IsOn, e => invoked = true);
+            var runner = (StateMachineRunner<TestStateId, TestFlagEventId>)data.Build(Substitute.For<IStateChanger<TestStateId>>());
+
+            var controller = (IStateController<TestFlagEventId>)runner.BindInfo.Instance;
+
+            Assert.IsTrue(controller.TriggerEvent(TestFlagEventId.On));
+            Assert.IsFalse(controller.TriggerEvent(TestFlagEventId.Off));
+            Assert.IsTrue(invoked);
+        }
+
+        #endregion
     }
 }

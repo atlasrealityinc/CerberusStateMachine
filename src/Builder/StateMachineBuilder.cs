@@ -27,6 +27,17 @@ namespace Cerberus.Builder
             _typedStateMachineData.AddEvent(eventId, action);
             return this;
         }
+
+        /// <summary>
+        /// Registers a machine-level handler that runs when a triggered event id satisfies <paramref name="predicate"/>.
+        /// A key-based event for the same value wins over predicates, otherwise the first registered
+        /// predicate that returns true wins. The handler can read the matched value from <c>e.EventId</c>.
+        /// </summary>
+        public StateMachineBuilder<StateIdT, EventIdT> AddEvent(Func<EventIdT, bool> predicate, Action<StateMachineEvent<StateIdT, EventIdT>> action)
+        {
+            _typedStateMachineData.AddEvent(predicate, action);
+            return this;
+        }
     }
 
     public class StateMachineBuilder<StateIdT> : StateMachineBuilderWithStates<StateIdT>

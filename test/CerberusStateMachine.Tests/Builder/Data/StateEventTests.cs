@@ -69,5 +69,32 @@ namespace Cerberus.Tests.Builder.Data
             Assert.IsNotNull(instance);
             Assert.IsInstanceOfType(instance, typeof(TrackingState1));
         }
+
+        [TestMethod]
+        public void Test_Typed_EventId_ReturnsConstructorValue()
+        {
+            var runner = CreateRunner(new List<string>());
+            runner.Start(TestStateId.State1);
+
+            var stateEvent = new StateEvent<TrackingState1, TestStateId, TestEventId>(runner, TestStateId.State1, TestEventId.Event3);
+
+            Assert.AreEqual(TestEventId.Event3, stateEvent.EventId);
+        }
+
+        [TestMethod]
+        public void Test_Typed_IsAlsoTheUntypedContext_AndBaseMembersStillWork()
+        {
+            var stateChanger = Substitute.For<IStateChanger<TestStateId>>();
+            var runner = CreateRunner(new List<string>(), stateChanger);
+            runner.Start(TestStateId.State2);
+            var stateEvent = new StateEvent<TrackingState1, TestStateId, TestEventId>(runner, TestStateId.State2, TestEventId.Event1);
+
+            IStateEvent<TrackingState1, TestStateId> untyped = stateEvent;
+            untyped.ChangeState(TestStateId.State3);
+
+            Assert.AreEqual(TestStateId.State2, untyped.PreviousStateId);
+            Assert.IsInstanceOfType(untyped.StateInstance, typeof(TrackingState1));
+            stateChanger.Received(1).ChangeState(TestStateId.State3);
+        }
     }
 }

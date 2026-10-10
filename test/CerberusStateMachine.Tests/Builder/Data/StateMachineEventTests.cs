@@ -19,5 +19,26 @@ namespace Cerberus.Tests.Builder.Data
 
             stateChanger.Received(1).ChangeState(TestStateId.State2);
         }
+
+        [TestMethod]
+        public void Test_Typed_EventId_ReturnsConstructorValue()
+        {
+            var stateChanger = Substitute.For<IStateChanger<TestStateId>>();
+
+            var machineEvent = new StateMachineEvent<TestStateId, TestMachineEventId>(stateChanger, TestMachineEventId.MachineEvent2);
+
+            Assert.AreEqual(TestMachineEventId.MachineEvent2, machineEvent.EventId);
+        }
+
+        [TestMethod]
+        public void Test_Typed_IsAlsoTheUntypedContext_AndChangeStateStillDelegates()
+        {
+            var stateChanger = Substitute.For<IStateChanger<TestStateId>>();
+            StateMachineEvent<TestStateId> untyped = new StateMachineEvent<TestStateId, TestMachineEventId>(stateChanger, TestMachineEventId.MachineEvent1);
+
+            untyped.ChangeState(TestStateId.State2);
+
+            stateChanger.Received(1).ChangeState(TestStateId.State2);
+        }
     }
 }

@@ -59,5 +59,45 @@ namespace Cerberus.Tests.Builder
 
             Assert.AreSame(parentBuilder, result);
         }
+
+        [TestMethod]
+        public void Test_AddEvent_Predicate_AddsEventToStateData()
+        {
+            var container = Substitute.For<IStateMachineContainer>();
+            var stateData = new StateData<NoOpState, TestStateId, TestFlagEventId>(
+                TestStateId.State1, container, new Dictionary<Type, List<Type>>());
+            var builder = new StateBuilder<NoOpState, TestStateId, TestFlagEventId, object>(new object(), stateData);
+
+            builder.AddEvent(e => e.IsOn, e => { });
+
+            Assert.AreEqual(1, stateData.PredicateEvents.Count);
+            Assert.AreEqual(0, stateData.StateEvents.Count);
+        }
+
+        [TestMethod]
+        public void Test_AddEvent_Predicate_ReturnsSelf()
+        {
+            var container = Substitute.For<IStateMachineContainer>();
+            var stateData = new StateData<NoOpState, TestStateId, TestFlagEventId>(
+                TestStateId.State1, container, new Dictionary<Type, List<Type>>());
+            var builder = new StateBuilder<NoOpState, TestStateId, TestFlagEventId, object>(new object(), stateData);
+
+            var result = builder.AddEvent(e => e.IsOn, e => { });
+
+            Assert.AreSame(builder, result);
+        }
+
+        [TestMethod]
+        public void Test_AddEvent_Predicate_NullPredicate_ThrowsArgumentNullException()
+        {
+            var container = Substitute.For<IStateMachineContainer>();
+            var stateData = new StateData<NoOpState, TestStateId, TestFlagEventId>(
+                TestStateId.State1, container, new Dictionary<Type, List<Type>>());
+            var builder = new StateBuilder<NoOpState, TestStateId, TestFlagEventId, object>(new object(), stateData);
+
+            var ex = Assert.ThrowsExactly<ArgumentNullException>(() => builder.AddEvent((Func<TestFlagEventId, bool>)null, e => { }));
+
+            Assert.AreEqual("predicate", ex.ParamName);
+        }
     }
 }

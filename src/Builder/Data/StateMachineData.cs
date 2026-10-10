@@ -17,6 +17,8 @@ namespace Cerberus.Builder.Data
         where StateIdT : Enum
     {
         public Dictionary<EventIdT, Action<StateMachineEvent<StateIdT>>> StateMachineEvents { get; } = new Dictionary<EventIdT, Action<StateMachineEvent<StateIdT>>>();
+        //Checked in registration order when no key-based event matches, see StateMachineRunner.TriggerEvent
+        public List<PredicateEvent<EventIdT, StateMachineEvent<StateIdT, EventIdT>>> PredicateEvents { get; } = new List<PredicateEvent<EventIdT, StateMachineEvent<StateIdT, EventIdT>>>();
 
         public void AddEvent(EventIdT eventId, Action<StateMachineEvent<StateIdT>> action)
         {
@@ -31,6 +33,17 @@ namespace Cerberus.Builder.Data
             }
 
             StateMachineEvents.Add(eventId, action);
+        }
+
+        public void AddEvent(Func<EventIdT, bool> predicate, Action<StateMachineEvent<StateIdT, EventIdT>> action)
+        {
+            if (predicate == null)
+            {
+                throw new ArgumentNullException(nameof(predicate));
+            }
+
+            //Delegates cannot be compared meaningfully, so unlike key-based events there is no duplicate check
+            PredicateEvents.Add(new PredicateEvent<EventIdT, StateMachineEvent<StateIdT, EventIdT>>(predicate, action));
         }
 
         public override StateMachineRunner<StateIdT> Build(IStateChanger<StateIdT> stateChanger)

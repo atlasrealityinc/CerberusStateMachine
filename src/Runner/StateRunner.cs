@@ -125,10 +125,13 @@ namespace Cerberus.Runner
         where StateIdT : Enum
     {
         protected readonly Dictionary<EventIdT, Action<IStateEvent<StateT, StateIdT>>> _events;
+        //Snapshotted at Build() into an array so TriggerEvent can index it without allocating
+        protected readonly PredicateEvent<EventIdT, IStateEvent<StateT, StateIdT, EventIdT>>[] _predicateEvents;
 
         public StateRunner(StateData<StateT, StateIdT, EventIdT> stateData, IStateChanger<StateIdT> stateChanger) : base(stateData, stateChanger)
         {
             _events = stateData.StateEvents ?? new Dictionary<EventIdT, Action<IStateEvent<StateT, StateIdT>>>();
+            _predicateEvents = stateData.PredicateEvents.ToArray();
         }
 
         public bool TriggerEvent(EventIdT eventId)
@@ -136,10 +139,21 @@ namespace Cerberus.Runner
             if (ActiveInstance == null)
                 return false;
 
+            //A key-based registration takes precedence over every predicate
             if (_events.TryGetValue(eventId, out var action))
             {
                 action?.Invoke(new StateEvent<StateT, StateIdT>(this, _previousStateId));
                 return true;
+            }
+
+            //First predicate to match wins, so at most one handler runs per trigger. The plain indexed loop keeps this allocation-free
+            for (var i = 0; i < _predicateEvents.Length; i++)
+            {
+                if (_predicateEvents[i].Predicate.Invoke(eventId))
+                {
+                    _predicateEvents[i].Action?.Invoke(new StateEvent<StateT, StateIdT, EventIdT>(this, _previousStateId, eventId));
+                    return true;
+                }
             }
             return false;
         }

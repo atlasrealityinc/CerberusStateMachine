@@ -55,5 +55,42 @@ namespace Cerberus.Tests.Builder
                         .State<NoOpState, TestSubEventId>(TestSubStateId.SubState1).End()
                         .State<NoOpState, TestSubEventId>(TestSubStateId.SubState1));
         }
+
+        [TestMethod]
+        public void Test_AddEvent_Predicate_ReturnsSelfWithCorrectType()
+        {
+            var sm = new StateMachineBuilder<TestStateId>()
+                .State<NoOpState, TestFlagEventId, TestSubStateId>(TestStateId.State1)
+                    .AddEvent(e => e.IsOn, e => { });
+
+            Assert.IsInstanceOfType(sm,
+                typeof(StateBuilderWithSubStates<NoOpState, TestStateId, TestFlagEventId, TestSubStateId,
+                    StateMachineBuilderWithStates<TestStateId>>));
+        }
+
+        [TestMethod]
+        public void Test_AddEvent_Predicate_ThenSubState_ContinuesFluentChain()
+        {
+            var sm = new StateMachineBuilder<TestStateId>()
+                .State<NoOpState, TestFlagEventId, TestSubStateId>(TestStateId.State1)
+                    .AddEvent(e => e.IsOn, e => { })
+                    .AddEvent(TestFlagEventId.Off, e => { })
+                    .State<NoOpState, TestSubEventId>(TestSubStateId.SubState1).End()
+                .End()
+                .Build();
+
+            Assert.IsNotNull(sm);
+        }
+
+        [TestMethod]
+        public void Test_AddEvent_Predicate_NullPredicate_ThrowsArgumentNullException()
+        {
+            var builder = new StateMachineBuilder<TestStateId>()
+                .State<NoOpState, TestFlagEventId, TestSubStateId>(TestStateId.State1);
+
+            var ex = Assert.ThrowsExactly<ArgumentNullException>(() => builder.AddEvent((Func<TestFlagEventId, bool>)null, e => { }));
+
+            Assert.AreEqual("predicate", ex.ParamName);
+        }
     }
 }

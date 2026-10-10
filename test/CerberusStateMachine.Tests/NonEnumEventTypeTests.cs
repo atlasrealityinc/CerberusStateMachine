@@ -285,7 +285,7 @@ namespace Cerberus.Tests
             var builder = new StateMachineBuilder<TestStateId>()
                 .State<NoOpState, string>(TestStateId.State1);
 
-            var ex = Assert.ThrowsExactly<ArgumentNullException>(() => builder.AddEvent(null, e => { }));
+            var ex = Assert.ThrowsExactly<ArgumentNullException>(() => builder.AddEvent((string)null, e => { }));
             Assert.AreEqual("eventId", ex.ParamName);
         }
 
@@ -294,7 +294,7 @@ namespace Cerberus.Tests
         {
             var builder = new StateMachineBuilder<TestStateId, string>();
 
-            var ex = Assert.ThrowsExactly<ArgumentNullException>(() => builder.AddEvent(null, e => { }));
+            var ex = Assert.ThrowsExactly<ArgumentNullException>(() => builder.AddEvent((string)null, e => { }));
             Assert.AreEqual("eventId", ex.ParamName);
         }
 

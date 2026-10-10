@@ -27,6 +27,12 @@ namespace Cerberus.Builder
             return this;
         }
 
+        public new StateBuilderWithSubStates<StateT, StateIdT, EventIdT, SubStateIdT, EndReturnT> AddEvent(Func<EventIdT, bool> predicate, Action<IStateEvent<StateT, StateIdT, EventIdT>> action)
+        {
+            base.AddEvent(predicate, action);
+            return this;
+        }
+
         public StateBuilder<SubStateT, SubStateIdT, SubEventIdT, StateBuilderWithSubStates<StateT, StateIdT, EventIdT, SubStateIdT, EndReturnT>> State<SubStateT, SubEventIdT>(SubStateIdT subStateId)
             where SubStateT : IState
         {

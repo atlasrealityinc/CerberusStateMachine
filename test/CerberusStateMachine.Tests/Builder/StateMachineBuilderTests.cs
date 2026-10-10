@@ -214,5 +214,53 @@ namespace Cerberus.Tests.Builder
 
             Assert.IsNotNull(sm);
         }
+
+        [TestMethod]
+        public void Test_MachineLevelBuilder_AddEvent_Predicate_RegistersEvent()
+        {
+            var callLog = new List<string>();
+            var container = CreateContainer(callLog);
+            var received = default(TestFlagEventId);
+
+            var sm = new StateMachineBuilder<TestStateId, TestFlagEventId>(container)
+                .AddEvent(e => e.IsOn, e =>
+                {
+                    received = e.EventId;
+                    e.ChangeState(TestStateId.State2);
+                })
+                .State<TrackingState1, TestEventId>(TestStateId.State1).End()
+                .State<TrackingState2, TestEventId>(TestStateId.State2).End()
+                .Build();
+            sm.Start();
+
+            var triggered = new TestFlagEventId(true, 3);
+            var handled = sm.StateController.TriggerEvent(triggered);
+
+            Assert.IsTrue(handled);
+            Assert.AreEqual(triggered, received);
+            Assert.IsTrue(callLog.Contains("State2:Enter"));
+        }
+
+        [TestMethod]
+        public void Test_MachineLevelBuilder_AddEvent_Predicate_FluentChain()
+        {
+            var sm = new StateMachineBuilder<TestStateId, TestFlagEventId>()
+                .AddEvent(e => e.IsOn, e => { })
+                .AddEvent(TestFlagEventId.Off, e => { })
+                .State<NoOpState, TestEventId>(TestStateId.State1).End()
+                .Build();
+
+            Assert.IsNotNull(sm);
+        }
+
+        [TestMethod]
+        public void Test_MachineLevelBuilder_AddEvent_Predicate_NullPredicate_ThrowsArgumentNullException()
+        {
+            var builder = new StateMachineBuilder<TestStateId, TestFlagEventId>();
+
+            var ex = Assert.ThrowsExactly<ArgumentNullException>(() => builder.AddEvent((Func<TestFlagEventId, bool>)null, e => { }));
+
+            Assert.AreEqual("predicate", ex.ParamName);
+        }
     }
 }

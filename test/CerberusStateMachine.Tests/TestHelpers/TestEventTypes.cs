@@ -46,6 +46,27 @@ namespace Cerberus.Tests.TestHelpers
         }
     }
 
+    /// <summary>A value-type event id that carries data, used to drive predicate events that split on a field.</summary>
+    public readonly struct TestFlagEventId : IEquatable<TestFlagEventId>
+    {
+        public static readonly TestFlagEventId On = new TestFlagEventId(true, 0);
+        public static readonly TestFlagEventId Off = new TestFlagEventId(false, 0);
+
+        public bool IsOn { get; }
+        public int Amount { get; }
+
+        public TestFlagEventId(bool isOn, int amount)
+        {
+            IsOn = isOn;
+            Amount = amount;
+        }
+
+        public bool Equals(TestFlagEventId other) => IsOn == other.IsOn && Amount == other.Amount;
+        public override bool Equals(object obj) => obj is TestFlagEventId other && Equals(other);
+        public override int GetHashCode() => (IsOn ? 1 : 0) * 31 + Amount;
+        public override string ToString() => $"TestFlagEventId({(IsOn ? "on" : "off")}, {Amount})";
+    }
+
     public static class TestStringEventId
     {
         public const string Go = "go";

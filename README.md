@@ -19,6 +19,7 @@ A fluent, type-safe state machine framework for .NET. Cerberus provides a builde
 - **Fluent Builder API** - Define your state machine with a clean, chainable syntax
 - **Type-Safe** - States, events, and transitions are all strongly typed through generics. State ids are enums; event ids can be enums or any other type
 - **Event-Driven Transitions** - State changes are triggered through events with rich context
+- **Predicate Events** - Match an event on a predicate over its value instead of equality, so one data-carrying event type can route to different handlers by its fields
 - **Unified Event Triggering** - A single `StateController` per state machine triggers an event of any type and delivers it to every active state, innermost first, without allocating
 - **Hierarchical Sub-States** - Nest state machines within states to any depth
 - **State Handlers** - Observe state lifecycle events with custom handlers
@@ -244,6 +245,68 @@ new StateMachineBuilder<GameState, GameEvent>()
 
 Machine-level event handlers receive a `StateMachineEvent<StateIdT>` which provides `ChangeState()`.
 
+### Predicate Events
+
+`AddEvent` normally matches a triggered event id against the registered value by equality. When the event id type carries data, you can instead register the handler against a **predicate** and match on the value's contents. The predicate overload is available at the state, sub-state and machine level:
+
+```csharp
+public enum DoorState { Closed, Open }
+
+public readonly struct SwitchInput : IEquatable<SwitchInput>
+{
+    public bool IsOn { get; }
+    public int Strength { get; }
+
+    public SwitchInput(bool isOn, int strength)
+    {
+        IsOn = isOn;
+        Strength = strength;
+    }
+
+    public bool Equals(SwitchInput other) => IsOn == other.IsOn && Strength == other.Strength;
+    public override bool Equals(object obj) => obj is SwitchInput other && Equals(other);
+    public override int GetHashCode() => (IsOn ? 1 : 0) * 31 + Strength;
+}
+
+IStateMachine<DoorState> stateMachine = new StateMachineBuilder<DoorState, SwitchInput>()
+    .State<ClosedState, SwitchInput>(DoorState.Closed)
+        // Two separate events on the same event id type, split by a field of the value
+        .AddEvent(input => input.IsOn, e =>
+        {
+            Console.WriteLine($"Opening with strength {e.EventId.Strength}");
+            e.ChangeState(DoorState.Open);
+        })
+        .AddEvent(input => !input.IsOn, e => Console.WriteLine("Already closed"))
+        .End()
+    .State<OpenState, SwitchInput>(DoorState.Open)
+        .AddEvent(input => !input.IsOn, e => e.ChangeState(DoorState.Closed))
+        .End()
+    .Build();
+
+stateMachine.Start();
+stateMachine.StateController.TriggerEvent(new SwitchInput(isOn: true, strength: 3));  // Closed -> Open
+stateMachine.StateController.TriggerEvent(new SwitchInput(isOn: false, strength: 0)); // Open -> Closed
+```
+
+The handler receives an `IStateEvent<StateT, StateIdT, EventIdT>` (or a `StateMachineEvent<StateIdT, EventIdT>` at the machine level). It has everything the key-based context has plus `EventId`, the value that satisfied the predicate.
+
+Predicates work with any event id type, including enums and strings:
+
+```csharp
+.AddEvent(id => id == GameEvent.Start || id == GameEvent.Restart, e => e.ChangeState(GameState.Playing))
+.AddEvent(name => name.StartsWith("debug:"), e => Log(e.EventId))
+```
+
+How a state picks the handler to run when an event is triggered:
+
+- **A key-based event wins.** If the triggered value is equal to a registered key, that handler runs and no predicate is checked, regardless of the order they were registered in.
+- **Otherwise the first matching predicate wins.** Predicates are checked in registration order and the first one that returns `true` runs. Later predicates are not evaluated.
+- **At most one handler runs per state.** Overlapping predicates are not an error, the earlier registration simply takes precedence. Each active state in the hierarchy still makes its own choice, so a sub-state and its parent can both handle the same trigger (see [How Events Are Delivered](#how-events-are-delivered)).
+- **Predicates are not checked for duplicates.** Unlike key-based events, registering the same or an equivalent predicate twice is allowed. A `null` predicate throws `ArgumentNullException`.
+- **Predicate checks allocate nothing.** Registrations are copied into an array at `Build()` and scanned with a plain loop, so `TriggerEvent` stays allocation-free when nothing matches. As with key-based events, the only allocation is the context object for the handler that runs.
+
+One consequence of the overload: a bare `null` literal as the first argument to `AddEvent` no longer compiles for reference event id types, because it could mean either a `null` key or a `null` predicate. Both throw `ArgumentNullException` at runtime, so this only affects code that was already broken. Cast the literal if you need it to compile, for example `(string)null`.
+
 ### Event Id Types
 
 Event ids are usually enums, but any type works: `string`, `int`, a `struct`, a `class`, a `record`, or an interface. The event id type is whatever you pass as `EventIdT` to `State<StateT, EventIdT>()` or `StateMachineBuilder<StateIdT, EventIdT>`. State ids still have to be enums.
@@ -268,7 +331,7 @@ stateMachine.StateController.TriggerEvent("reset");
 A few rules follow from how events are matched to states:
 
 - **The type argument must be exactly the type the state was declared with.** `TriggerEvent` infers `EventIdT` from the static type of the value you pass. An `int` literal does not reach a state declared with `long`, a concrete instance does not reach a state declared with its interface or base class, and an enum value does not reach a state declared with the nullable enum. When in doubt, pass the type argument explicitly: `TriggerEvent<IMyEvent>(myEvent)`.
-- **Equality decides which handler runs.** Lookups use `EqualityComparer<EventIdT>.Default`. Strings and records compare by value. A class without `Equals` and `GetHashCode` overrides compares by reference, so register and trigger with the same instance. A `struct` should implement `IEquatable<T>` and override `GetHashCode`, otherwise every lookup boxes it and `TriggerEvent` is no longer allocation-free.
+- **Equality decides which handler runs**, unless the handler was registered with a predicate (see [Predicate Events](#predicate-events)). Lookups use `EqualityComparer<EventIdT>.Default`. Strings and records compare by value. A class without `Equals` and `GetHashCode` overrides compares by reference, so register and trigger with the same instance. A `struct` should implement `IEquatable<T>` and override `GetHashCode`, otherwise every lookup boxes it and `TriggerEvent` is no longer allocation-free.
 - **`null` is not a valid event id.** `AddEvent` and `TriggerEvent` throw `ArgumentNullException`.
 
 If you implement `IStateController` or `IStateControllerProvider` yourself instead of using the ones the state machine provides, remove any `where EventIdT : Enum` constraint from your `TriggerEvent` / `GetStateController`. Implementations must match the interface, which no longer has that constraint.
@@ -425,8 +488,9 @@ The rules it follows:
 
 - At each level the event is only offered to a state whose event id type matches the type argument of the call, which is inferred from the value passed in. A state that uses a different event id type is skipped. See [Event Id Types](#event-id-types).
 - Every matching level is offered the event, even when an inner level has already handled it. `TriggerEvent` returns `true` if any level handled it.
+- Within one level at most one handler runs: the key-based handler for the triggered value if there is one, otherwise the first registered predicate that matches. See [Predicate Events](#predicate-events).
 - The set of active states is captured before any handler runs. If a handler causes a transition, states entered by that transition are not offered the same event, and states exited by it no longer handle it.
-- The controller itself allocates nothing per call. The only allocations are the event context objects passed to handlers that actually run.
+- The controller itself allocates nothing per call, and neither do key lookups or predicate checks. The only allocations are the event context objects passed to handlers that actually run.
 
 ### Deprecated: Per-State Controllers
 

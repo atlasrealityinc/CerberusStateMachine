@@ -661,5 +661,181 @@ namespace Cerberus.Tests.Runner
             Assert.IsFalse(handled);
         }
 
+
+        #region predicate events
+
+        private StateData<TrackingState1, TestStateId, TestFlagEventId> CreateFlagStateData()
+        {
+            return new StateData<TrackingState1, TestStateId, TestFlagEventId>(
+                TestStateId.State1, CreateContainer(new List<string>()), new Dictionary<Type, List<Type>>());
+        }
+
+        private static StateRunner<TrackingState1, TestStateId, TestFlagEventId> CreateFlagRunner(
+            StateData<TrackingState1, TestStateId, TestFlagEventId> stateData,
+            IStateChanger<TestStateId> stateChanger = null)
+        {
+            return new StateRunner<TrackingState1, TestStateId, TestFlagEventId>(
+                stateData, stateChanger ?? Substitute.For<IStateChanger<TestStateId>>());
+        }
+
+        [TestMethod]
+        public void Test_TriggerEvent_PredicateMatches_InvokesActionWithEventId_ReturnsTrue()
+        {
+            var stateData = CreateFlagStateData();
+            var invoked = false;
+            var received = default(TestFlagEventId);
+            stateData.AddEvent(e => e.IsOn, e => { invoked = true; received = e.EventId; });
+            var runner = CreateFlagRunner(stateData);
+            runner.Start(TestStateId.State1);
+
+            var triggered = new TestFlagEventId(true, 7);
+            var handled = runner.TriggerEvent(triggered);
+
+            Assert.IsTrue(handled);
+            Assert.IsTrue(invoked);
+            Assert.AreEqual(triggered, received);
+        }
+
+        [TestMethod]
+        public void Test_TriggerEvent_PredicateDoesNotMatch_ReturnsFalse()
+        {
+            var stateData = CreateFlagStateData();
+            var invoked = false;
+            stateData.AddEvent(e => e.IsOn, e => invoked = true);
+            var runner = CreateFlagRunner(stateData);
+            runner.Start(TestStateId.State1);
+
+            var handled = runner.TriggerEvent(TestFlagEventId.Off);
+
+            Assert.IsFalse(handled);
+            Assert.IsFalse(invoked);
+        }
+
+        [TestMethod]
+        public void Test_TriggerEvent_Predicate_WhenNotActive_ReturnsFalseWithoutEvaluatingPredicate()
+        {
+            var stateData = CreateFlagStateData();
+            var predicateCalls = 0;
+            stateData.AddEvent(e => { predicateCalls++; return true; }, e => { });
+            var runner = CreateFlagRunner(stateData);
+
+            var handled = runner.TriggerEvent(TestFlagEventId.On);
+
+            Assert.IsFalse(handled);
+            Assert.AreEqual(0, predicateCalls);
+        }
+
+        [TestMethod]
+        public void Test_TriggerEvent_KeyAndPredicateBothMatch_OnlyKeyBasedHandlerRuns_PredicateNotEvaluated()
+        {
+            var stateData = CreateFlagStateData();
+            var log = new List<string>();
+            //The predicate is registered first, so precedence is not registration order
+            stateData.AddEvent(e => { log.Add("predicate-checked"); return e.IsOn; }, e => log.Add("predicate"));
+            stateData.AddEvent(TestFlagEventId.On, e => log.Add("key"));
+            var runner = CreateFlagRunner(stateData);
+            runner.Start(TestStateId.State1);
+
+            var handled = runner.TriggerEvent(TestFlagEventId.On);
+
+            Assert.IsTrue(handled);
+            CollectionAssert.AreEqual(new[] { "key" }, log);
+        }
+
+        [TestMethod]
+        public void Test_TriggerEvent_KeyDoesNotMatch_MatchingPredicateRuns()
+        {
+            var stateData = CreateFlagStateData();
+            var log = new List<string>();
+            stateData.AddEvent(TestFlagEventId.On, e => log.Add("key"));
+            stateData.AddEvent(e => e.IsOn, e => log.Add($"predicate:{e.EventId.Amount}"));
+            var runner = CreateFlagRunner(stateData);
+            runner.Start(TestStateId.State1);
+
+            //Equal in IsOn but not equal to the key, which has Amount 0
+            var handled = runner.TriggerEvent(new TestFlagEventId(true, 5));
+
+            Assert.IsTrue(handled);
+            CollectionAssert.AreEqual(new[] { "predicate:5" }, log);
+        }
+
+        [TestMethod]
+        public void Test_TriggerEvent_TwoPredicatesMatch_OnlyFirstRegisteredRuns_SecondNotEvaluated()
+        {
+            var stateData = CreateFlagStateData();
+            var log = new List<string>();
+            stateData.AddEvent(e => e.IsOn, e => log.Add("first"));
+            stateData.AddEvent(e => { log.Add("second-checked"); return e.IsOn; }, e => log.Add("second"));
+            var runner = CreateFlagRunner(stateData);
+            runner.Start(TestStateId.State1);
+
+            var handled = runner.TriggerEvent(TestFlagEventId.On);
+
+            Assert.IsTrue(handled);
+            CollectionAssert.AreEqual(new[] { "first" }, log);
+        }
+
+        [TestMethod]
+        public void Test_TriggerEvent_FirstPredicateFalseSecondTrue_SecondRuns()
+        {
+            var stateData = CreateFlagStateData();
+            var log = new List<string>();
+            stateData.AddEvent(e => e.IsOn, e => log.Add("on"));
+            stateData.AddEvent(e => !e.IsOn, e => log.Add("off"));
+            var runner = CreateFlagRunner(stateData);
+            runner.Start(TestStateId.State1);
+
+            var handled = runner.TriggerEvent(TestFlagEventId.Off);
+
+            Assert.IsTrue(handled);
+            CollectionAssert.AreEqual(new[] { "off" }, log);
+        }
+
+        [TestMethod]
+        public void Test_TriggerEvent_PredicateEventContext_ExposesPreviousStateIdStateInstanceAndChangeState()
+        {
+            var stateData = CreateFlagStateData();
+            var stateChanger = Substitute.For<IStateChanger<TestStateId>>();
+            IStateEvent<TrackingState1, TestStateId, TestFlagEventId> context = null;
+            stateData.AddEvent(e => true, e => context = e);
+            var runner = CreateFlagRunner(stateData, stateChanger);
+            runner.Start(TestStateId.State2);
+
+            runner.TriggerEvent(TestFlagEventId.On);
+            context.ChangeState(TestStateId.State3);
+
+            Assert.AreEqual(TestStateId.State2, context.PreviousStateId);
+            Assert.AreSame(runner.ActiveInstance, context.StateInstance);
+            Assert.AreEqual(TestFlagEventId.On, context.EventId);
+            stateChanger.Received(1).ChangeState(TestStateId.State3);
+        }
+
+        [TestMethod]
+        public void Test_TriggerEvent_PredicateWithNullAction_CountsAsHandled()
+        {
+            //Mirrors the key-based path, which also tolerates a null action
+            var stateData = CreateFlagStateData();
+            stateData.AddEvent(e => true, null);
+            var runner = CreateFlagRunner(stateData);
+            runner.Start(TestStateId.State1);
+
+            Assert.IsTrue(runner.TriggerEvent(TestFlagEventId.On));
+        }
+
+        [TestMethod]
+        public void Test_TriggerEvent_PredicateEventsSnapshottedAtBuild_LaterRegistrationsDoNotReachRunner()
+        {
+            var stateData = CreateFlagStateData();
+            stateData.AddEvent(e => e.IsOn, e => { });
+            var runner = CreateFlagRunner(stateData);
+            runner.Start(TestStateId.State1);
+
+            stateData.AddEvent(e => !e.IsOn, e => { });
+
+            Assert.IsTrue(runner.TriggerEvent(TestFlagEventId.On));
+            Assert.IsFalse(runner.TriggerEvent(TestFlagEventId.Off));
+        }
+
+        #endregion
     }
 }
