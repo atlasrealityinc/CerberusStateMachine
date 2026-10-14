@@ -1,6 +1,7 @@
 ﻿using Cerberus.Builder.Data;
 using Cerberus.IoC;
 using Cerberus.StateController;
+using Cerberus.StateHandlers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,7 +12,6 @@ namespace Cerberus.Runner
             where StateIdT : Enum
     {
         protected readonly IStateMachineContainer _container;
-        protected readonly Dictionary<Type, List<Type>> _stateHandlerTypes;
 
 #pragma warning disable CS0618 // Backs the deprecated per-state controller API, see docs/DEPRECATED.md
         protected BindInfo[] _bindInfo = null;
@@ -37,7 +37,6 @@ namespace Cerberus.Runner
         {
             StateId = stateData.StateId;
             _container = stateData.StateMachineContainer;
-            _stateHandlerTypes = stateData.StateHandlerTypes;
         }
 
         public abstract void Start(StateIdT previousStateId);
@@ -53,6 +52,8 @@ namespace Cerberus.Runner
     {
         protected readonly IStateChanger<StateIdT> _stateChanger;
         protected readonly Stack<object> _stateHandlerInstances = new Stack<object>();
+        //Flattened at Build() into the handler types that apply to StateT, so Start() can walk it without re-checking IsAssignableFrom
+        protected readonly Type[] _stateHandlerTypes;
 
         protected StateIdT _previousStateId;
 
@@ -69,6 +70,7 @@ namespace Cerberus.Runner
         public StateRunner(StateData<StateT, StateIdT> stateData, IStateChanger<StateIdT> stateChanger) : base(stateData)
         {
             _stateChanger = stateChanger;
+            _stateHandlerTypes = FlattenStateHandlerTypes(stateData.StateHandlerTypes);
         }
 
         public override void Start(StateIdT previousStateId)
@@ -80,23 +82,47 @@ namespace Cerberus.Runner
 
             _previousStateId = previousStateId;
             ActiveInstance = _container.Resolve<StateT>();
-            foreach (var stateHandlerTypeKvp in _stateHandlerTypes)
+            foreach (var stateHandlerType in _stateHandlerTypes)
             {
-                if (stateHandlerTypeKvp.Key.IsAssignableFrom(typeof(StateT)))
+                var stateHandlerInstance = _container.Resolve(stateHandlerType);
+                _stateHandlerInstances.Push(stateHandlerInstance);
+                stateHandlerInstance.GetType().GetMethod("OnEnterState", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance).Invoke(stateHandlerInstance, _activeInstance);
+                if (ActiveInstance == null)
                 {
-                    foreach (var stateHandler in stateHandlerTypeKvp.Value)
-                    {
-                        var stateHandlerInstance = _container.Resolve(stateHandler);
-                        _stateHandlerInstances.Push(stateHandlerInstance);
-                        stateHandlerInstance.GetType().GetMethod("OnEnterState", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance).Invoke(stateHandlerInstance, _activeInstance);
-                        if (ActiveInstance == null)
-                        {
-                            //Calling the OnEnterState can result in the state changing, so if the state changes and Stop() is called (And the ActiveInstance becomes null) we stop
-                            return;
-                        }
-                    }
+                    //Calling the OnEnterState can result in the state changing, so if the state changes and Stop() is called (And the ActiveInstance becomes null) we stop
+                    return;
                 }
             }
+        }
+
+        private static Type[] FlattenStateHandlerTypes(Dictionary<Type, List<Type>> stateHandlerTypes)
+        {
+            var flattened = new List<Type>();
+            var hasEnterAndExitStateHandler = false;
+            foreach (var stateHandlerTypeKvp in stateHandlerTypes)
+            {
+                if (!stateHandlerTypeKvp.Key.IsAssignableFrom(typeof(StateT)))
+                {
+                    continue;
+                }
+
+                foreach (var stateHandlerType in stateHandlerTypeKvp.Value)
+                {
+                    if (stateHandlerType == typeof(EnterAndExitStateHandler))
+                    {
+                        hasEnterAndExitStateHandler = true;
+                        continue;
+                    }
+                    flattened.Add(stateHandlerType);
+                }
+            }
+
+            //The built-in handler is what calls the state's own OnEnter()/OnExit(), so it always goes last: user handlers enter before the state and, because Stop() pops a stack, exit after it
+            if (hasEnterAndExitStateHandler)
+            {
+                flattened.Add(typeof(EnterAndExitStateHandler));
+            }
+            return flattened.ToArray();
         }
 
         public override void Stop()

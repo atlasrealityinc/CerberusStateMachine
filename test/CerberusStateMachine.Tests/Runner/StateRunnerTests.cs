@@ -95,6 +95,34 @@ namespace Cerberus.Tests.Runner
         }
 
         [TestMethod]
+        public void Test_StartAndStop_EnterAndExitStateHandlerListedFirst_StillWrapsUserHandlers()
+        {
+            var callLog = new List<string>();
+            var container = CreateContainer(callLog, new Dictionary<Type, object>
+            {
+                { typeof(TrackingStateHandlerA), new TrackingStateHandlerA(callLog) }
+            });
+            // The built-in handler is deliberately listed before the user handler
+            var handlerTypes = new Dictionary<Type, List<Type>>
+            {
+                { typeof(IState), new List<Type> { typeof(EnterAndExitStateHandler), typeof(TrackingStateHandlerA) } }
+            };
+            var stateData = new StateData<TrackingState1, TestStateId, TestEventId>(
+                TestStateId.State1, container, handlerTypes);
+            var stateChanger = Substitute.For<IStateChanger<TestStateId>>();
+            var runner = new StateRunner<TrackingState1, TestStateId, TestEventId>(stateData, stateChanger);
+
+            runner.Start(TestStateId.State1);
+
+            CollectionAssert.AreEqual(new[] { "HandlerA:Enter:TrackingState1", "State1:Enter" }, callLog);
+            callLog.Clear();
+
+            runner.Stop();
+
+            CollectionAssert.AreEqual(new[] { "State1:Exit", "HandlerA:Exit:TrackingState1" }, callLog);
+        }
+
+        [TestMethod]
         public void Test_Start_WhenHandlerCausesStateChange_StopsRemainingHandlers()
         {
             var callLog = new List<string>();
@@ -116,7 +144,7 @@ namespace Cerberus.Tests.Runner
             });
             var handlerTypes = new Dictionary<Type, List<Type>>
             {
-                { typeof(IState), new List<Type> { typeof(StateChangingHandler), typeof(TrackingStateHandlerB) } }
+                { typeof(IState), new List<Type> { typeof(StateChangingHandler), typeof(TrackingStateHandlerB), typeof(EnterAndExitStateHandler) } }
             };
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId>(
                 TestStateId.State1, container, handlerTypes);
@@ -131,6 +159,9 @@ namespace Cerberus.Tests.Runner
             // Stop() nulls ActiveInstance, so the next handler (TrackingStateHandlerB) should NOT fire
             Assert.IsTrue(callLog.Contains("ChangingHandler:Enter"));
             Assert.IsFalse(callLog.Any(c => c.Contains("HandlerB:Enter")));
+            // The state's own OnEnter() comes after the handlers, so it is skipped too, and a state that never entered never exits
+            Assert.IsFalse(callLog.Contains("State1:Enter"));
+            Assert.IsFalse(callLog.Contains("State1:Exit"));
         }
 
         [TestMethod]

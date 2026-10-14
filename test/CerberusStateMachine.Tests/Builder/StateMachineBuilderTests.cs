@@ -13,14 +13,23 @@ namespace Cerberus.Tests.Builder
     [TestClass]
     public class StateMachineBuilderTests
     {
-        private IStateMachineContainer CreateContainer(List<string> callLog)
+        private IStateMachineContainer CreateContainer(
+            List<string> callLog,
+            Dictionary<Type, object> overrides = null)
         {
             var container = Substitute.For<IStateMachineContainer>();
             container.Resolve<TrackingState1>().Returns(_ => new TrackingState1(callLog));
             container.Resolve<TrackingState2>().Returns(_ => new TrackingState2(callLog));
             container.Resolve<TrackingState3>().Returns(_ => new TrackingState3(callLog));
+            container.Resolve<CustomTrackingState>().Returns(_ => new CustomTrackingState(callLog));
             container.Resolve<NoOpState>().Returns(_ => new NoOpState());
-            container.Resolve(Arg.Any<Type>()).Returns(ci => Activator.CreateInstance((Type)ci[0]));
+            container.Resolve(Arg.Any<Type>()).Returns(ci =>
+            {
+                var type = (Type)ci[0];
+                if (overrides != null && overrides.TryGetValue(type, out var instance))
+                    return instance;
+                return Activator.CreateInstance(type);
+            });
             return container;
         }
 
@@ -117,6 +126,94 @@ namespace Cerberus.Tests.Builder
             sm.Start();
 
             Assert.IsTrue(callLog.Contains("HandlerA:Enter:TrackingState1"));
+        }
+
+        [TestMethod]
+        public void Test_AddStateHandler_HandlersWrapStateOnEnterAndOnExit()
+        {
+            var callLog = new List<string>();
+            var container = CreateContainer(callLog, new Dictionary<Type, object>
+            {
+                { typeof(TrackingStateHandlerA), new TrackingStateHandlerA(callLog) },
+                { typeof(TrackingStateHandlerB), new TrackingStateHandlerB(callLog) }
+            });
+
+            var sm = new StateMachineBuilder<TestStateId>(container)
+                .AddStateHandler<IState, TrackingStateHandlerA>()
+                .AddStateHandler<IState, TrackingStateHandlerB>()
+                .State<TrackingState1, TestEventId>(TestStateId.State1)
+                    .AddEvent(TestEventId.Event1, e => e.ChangeState(TestStateId.State2))
+                    .End()
+                .State<TrackingState2, TestEventId>(TestStateId.State2).End()
+                .Build();
+
+            sm.Start();
+            sm.StateController.TriggerEvent(TestEventId.Event1);
+
+            // Handlers enter before the state's OnEnter() and exit after its OnExit(), in reverse order
+            CollectionAssert.AreEqual(new[]
+            {
+                "HandlerA:Enter:TrackingState1",
+                "HandlerB:Enter:TrackingState1",
+                "State1:Enter",
+                "State1:Exit",
+                "HandlerB:Exit:TrackingState1",
+                "HandlerA:Exit:TrackingState1",
+                "HandlerA:Enter:TrackingState2",
+                "HandlerB:Enter:TrackingState2",
+                "State2:Enter"
+            }, callLog);
+        }
+
+        [TestMethod]
+        public void Test_AddStateHandler_NarrowerHandlerRegisteredAfterIStateHandler_StillWrapsState()
+        {
+            var callLog = new List<string>();
+            var container = CreateContainer(callLog, new Dictionary<Type, object>
+            {
+                { typeof(TrackingStateHandlerA), new TrackingStateHandlerA(callLog) },
+                { typeof(CustomStateHandler), new CustomStateHandler(callLog) }
+            });
+
+            // IState handler first, narrower handler second: Build() appends the built-in enter/exit handler to the
+            // IState bucket, which must not put it ahead of the handler registered for ICustomState
+            var sm = new StateMachineBuilder<TestStateId>(container)
+                .AddStateHandler<IState, TrackingStateHandlerA>()
+                .AddStateHandler<ICustomState, CustomStateHandler>()
+                .State<CustomTrackingState, TestEventId>(TestStateId.State1)
+                    .AddEvent(TestEventId.Event1, e => e.ChangeState(TestStateId.State2))
+                    .End()
+                .State<TrackingState2, TestEventId>(TestStateId.State2).End()
+                .Build();
+
+            sm.Start();
+            sm.StateController.TriggerEvent(TestEventId.Event1);
+
+            CollectionAssert.AreEqual(new[]
+            {
+                "HandlerA:Enter:CustomTrackingState",
+                "CustomHandler:Enter:CustomTrackingState",
+                "CustomState:Enter",
+                "CustomState:Exit",
+                "CustomHandler:Exit:CustomTrackingState",
+                "HandlerA:Exit:CustomTrackingState",
+                "HandlerA:Enter:TrackingState2",
+                "State2:Enter"
+            }, callLog);
+        }
+
+        [TestMethod]
+        public void Test_Build_CalledTwice_SecondMachineCallsOnEnterOnce()
+        {
+            var callLog = new List<string>();
+            var builder = new StateMachineBuilder<TestStateId>(CreateContainer(callLog))
+                .State<TrackingState1, TestEventId>(TestStateId.State1).End();
+            builder.Build();
+            var sm = builder.Build();
+
+            sm.Start();
+
+            Assert.AreEqual(1, callLog.Count(c => c == "State1:Enter"));
         }
 
         [TestMethod]

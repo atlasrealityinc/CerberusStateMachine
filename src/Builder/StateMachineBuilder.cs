@@ -58,6 +58,11 @@ namespace Cerberus.Builder
 
         }
 
+        /// <summary>
+        /// Registers <typeparamref name="StateHandlerT"/> to run for every state assignable to <typeparamref name="StateT"/>.
+        /// Handlers wrap the state: <c>OnEnterState</c> runs before the state's <c>OnEnter()</c>, and <c>OnExitState</c>
+        /// runs after its <c>OnExit()</c>, in the reverse of the enter order.
+        /// </summary>
         public StateMachineBuilder<StateIdT> AddStateHandler<StateT, StateHandlerT>()
             where StateHandlerT : IStateHandler<StateT>
         {

@@ -457,6 +457,19 @@ new StateMachineBuilder<MyState>()
     .Build();
 ```
 
+### Handler Ordering
+
+Handlers wrap the state's own lifecycle methods. On enter, every applicable handler's `OnEnterState()` runs and then the state's `OnEnter()` runs last. On exit, the state's `OnExit()` runs first and then `OnExitState()` runs in the reverse of the enter order:
+
+```
+enter:  handler 1 → handler 2 → ... → state.OnEnter()
+exit:   state.OnExit() → ... → handler 2 → handler 1
+```
+
+This holds whether a handler targets `IState` or a narrower type, and regardless of the order you call `AddStateHandler`. Handlers registered for the same `StateT` enter in registration order; do not rely on a particular order between handlers registered for different `StateT` types.
+
+If a handler's `OnEnterState()` changes state, the remaining handlers and the state's `OnEnter()` are skipped, and only the handlers that already entered receive `OnExitState()`.
+
 ## State Controllers
 
 After building and starting a state machine, you interact with it at runtime through its **state controller**. Every `IStateMachine<StateIdT>` exposes a single `StateController` that is not tied to a particular state or event type, so there is nothing to look up: you trigger an event and the state machine delivers it to whichever states are currently active.
