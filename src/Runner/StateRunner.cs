@@ -235,6 +235,12 @@ namespace Cerberus.Runner
 
             base.Start(previousStateId);
 
+            if (ActiveInstance == null)
+            {
+                //A handler's OnEnterState changed state and Stop() ran mid-enter, so this state is no longer active and must not enter a sub-state
+                return;
+            }
+
             if (ActiveSubState != null)
             {
                 //Shouldnt ever get here
@@ -253,13 +259,12 @@ namespace Cerberus.Runner
                 return;
             }
 
-            if (ActiveSubState == null)
+            //ActiveSubState is still null while this state's own handlers are entering, so a handler-triggered change must still fall through to base.Stop()
+            if (ActiveSubState != null)
             {
-                return;
+                ActiveSubState.Stop();
+                ActiveSubState = null;
             }
-
-            ActiveSubState.Stop();
-            ActiveSubState = null;
 
             base.Stop();
         }

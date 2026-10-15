@@ -23,6 +23,7 @@ namespace Cerberus.Tests.Builder
             container.Resolve<TrackingState3>().Returns(_ => new TrackingState3(callLog));
             container.Resolve<CustomTrackingState>().Returns(_ => new CustomTrackingState(callLog));
             container.Resolve<NoOpState>().Returns(_ => new NoOpState());
+            container.Resolve<TrackingSubState1>().Returns(_ => new TrackingSubState1(callLog));
             container.Resolve(Arg.Any<Type>()).Returns(ci =>
             {
                 var type = (Type)ci[0];
@@ -162,6 +163,95 @@ namespace Cerberus.Tests.Builder
                 "HandlerA:Enter:TrackingState2",
                 "HandlerB:Enter:TrackingState2",
                 "State2:Enter"
+            }, callLog);
+        }
+
+        [TestMethod]
+        public void Test_AddStateHandler_HandlerChangesStateOnEnter_LeafState_SkipsRemainingHandlersAndState()
+        {
+            var callLog = new List<string>();
+            IStateMachine<TestStateId> sm = null;
+            // Registered for IState so it also runs for State2, hence the type filter
+            var changingHandler = new StateChangingHandler(state =>
+            {
+                if (state is TrackingState1)
+                {
+                    callLog.Add("ChangingHandler:Enter");
+                    sm.StateController.TriggerEvent(TestEventId.Event1);
+                }
+            });
+            var container = CreateContainer(callLog, new Dictionary<Type, object>
+            {
+                { typeof(StateChangingHandler), changingHandler },
+                { typeof(TrackingStateHandlerB), new TrackingStateHandlerB(callLog) }
+            });
+            sm = new StateMachineBuilder<TestStateId>(container)
+                .AddStateHandler<IState, StateChangingHandler>()
+                .AddStateHandler<IState, TrackingStateHandlerB>()
+                .State<TrackingState1, TestEventId>(TestStateId.State1)
+                    .AddEvent(TestEventId.Event1, e => e.ChangeState(TestStateId.State2))
+                    .End()
+                .State<TrackingState2, TestEventId>(TestStateId.State2)
+                    .AddEvent(TestEventId.Event2, e => callLog.Add("State2:Event2"))
+                    .End()
+                .Build();
+
+            sm.Start();
+            // Proves the machine is in State2 once Start() returns
+            sm.StateController.TriggerEvent(TestEventId.Event2);
+
+            // The change happens inside the first handler, so the rest of State1's enter is skipped and State1 never exits
+            CollectionAssert.AreEqual(new[]
+            {
+                "ChangingHandler:Enter",
+                "HandlerB:Enter:TrackingState2",
+                "State2:Enter",
+                "State2:Event2"
+            }, callLog);
+        }
+
+        [TestMethod]
+        public void Test_AddStateHandler_HandlerChangesStateOnEnter_CompositeState_SkipsStateAndSubState()
+        {
+            var callLog = new List<string>();
+            IStateMachine<TestStateId> sm = null;
+            // Registered for IState so it also runs for State2 and the sub-state, hence the type filter
+            var changingHandler = new StateChangingHandler(state =>
+            {
+                if (state is TrackingState1)
+                {
+                    callLog.Add("ChangingHandler:Enter");
+                    sm.StateController.TriggerEvent(TestEventId.Event1);
+                }
+            });
+            var container = CreateContainer(callLog, new Dictionary<Type, object>
+            {
+                { typeof(StateChangingHandler), changingHandler },
+                { typeof(TrackingStateHandlerB), new TrackingStateHandlerB(callLog) }
+            });
+            sm = new StateMachineBuilder<TestStateId>(container)
+                .AddStateHandler<IState, StateChangingHandler>()
+                .AddStateHandler<IState, TrackingStateHandlerB>()
+                .State<TrackingState1, TestEventId, TestSubStateId>(TestStateId.State1)
+                    .AddEvent(TestEventId.Event1, e => e.ChangeState(TestStateId.State2))
+                    .State<TrackingSubState1, TestSubEventId>(TestSubStateId.SubState1).End()
+                    .End()
+                .State<TrackingState2, TestEventId>(TestStateId.State2)
+                    .AddEvent(TestEventId.Event2, e => callLog.Add("State2:Event2"))
+                    .End()
+                .Build();
+
+            sm.Start();
+            // Proves the machine is in State2 once Start() returns
+            sm.StateController.TriggerEvent(TestEventId.Event2);
+
+            // The change happens inside the first handler, so State1's remaining handlers, its OnEnter() and its default sub-state are all skipped
+            CollectionAssert.AreEqual(new[]
+            {
+                "ChangingHandler:Enter",
+                "HandlerB:Enter:TrackingState2",
+                "State2:Enter",
+                "State2:Event2"
             }, callLog);
         }
 

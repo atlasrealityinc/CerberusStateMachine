@@ -35,6 +35,18 @@ namespace Cerberus.Tests.Builder.Data
         }
 
         [TestMethod]
+        public void Test_Constructor_NullStateHandlerRegistrations_ThrowsArgumentNullException()
+        {
+            var container = Substitute.For<IStateMachineContainer>();
+
+            var ex = Assert.ThrowsExactly<ArgumentNullException>(() =>
+                new StateData<NoOpState, TestStateId, TestEventId>(
+                    TestStateId.State1, container, null));
+
+            Assert.AreEqual("stateHandlerRegistrations", ex.ParamName);
+        }
+
+        [TestMethod]
         public void Test_AddEvent_AddsSuccessfully()
         {
             var container = Substitute.For<IStateMachineContainer>();

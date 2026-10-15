@@ -356,6 +356,48 @@ namespace Cerberus.Tests.Runner
         }
 
         [TestMethod]
+        public void Test_SubState_Start_WhenHandlerCausesStateChange_StopsAndDoesNotEnterSubState()
+        {
+            var callLog = new List<string>();
+            var stateChanger = Substitute.For<IStateChanger<TestStateId>>();
+            // The registrations are shared with the sub-state, so only react to the parent entering
+            var changingHandler = new StateChangingHandler(state =>
+            {
+                if (state is TrackingState1)
+                {
+                    callLog.Add("ChangingHandler:Enter");
+                    stateChanger.ChangeState(TestStateId.State2);
+                }
+            });
+            var trackingHandler = new TrackingStateHandlerB(callLog);
+            var container = CreateContainer(callLog, new Dictionary<Type, object>
+            {
+                { typeof(StateChangingHandler), changingHandler },
+                { typeof(TrackingStateHandlerB), trackingHandler }
+            });
+            var handlerTypes = new StateHandlerRegistrations
+            {
+                { typeof(IState), typeof(StateChangingHandler) }, { typeof(IState), typeof(TrackingStateHandlerB) }, { typeof(IState), typeof(EnterAndExitStateHandler) }
+            };
+            var stateData = new StateData<TrackingState1, TestStateId, TestEventId, TestSubStateId>(
+                TestStateId.State1, container, handlerTypes);
+            var subStateData = new StateData<TrackingSubState1, TestSubStateId, TestSubEventId>(
+                TestSubStateId.SubState1, container, handlerTypes);
+            stateData.AddSubState(TestSubStateId.SubState1, subStateData);
+            var runner = new StateRunner<TrackingState1, TestStateId, TestEventId, TestSubStateId>(stateData, stateChanger);
+            // The real state machine calls Stop() on the runner it is leaving
+            stateChanger.When(x => x.ChangeState(Arg.Any<TestStateId>())).Do(_ => runner.Stop());
+
+            runner.Start(TestStateId.State1);
+
+            Assert.IsFalse(callLog.Contains("State1:Enter"), "Stop() must reach base.Stop() even though no sub-state is active yet");
+            Assert.IsFalse(callLog.Contains("SubState1:Enter"), "A state stopped mid-enter must not enter its default sub-state");
+            CollectionAssert.AreEqual(new[] { "ChangingHandler:Enter" }, callLog);
+            Assert.IsNull(runner.ActiveInstance);
+            Assert.IsNull(runner.ActiveSubState);
+        }
+
+        [TestMethod]
         public void Test_SubState_Stop_StopsActiveSubState()
         {
             var callLog = new List<string>();

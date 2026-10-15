@@ -18,7 +18,7 @@ namespace Cerberus.Builder.Data
         {
             StateId = stateId;
             StateMachineContainer = stateMachineContainer ?? throw new ArgumentNullException(nameof(stateMachineContainer));
-            StateHandlerRegistrations = stateHandlerRegistrations ?? new StateHandlerRegistrations();
+            StateHandlerRegistrations = stateHandlerRegistrations ?? throw new ArgumentNullException(nameof(stateHandlerRegistrations));
         }
 
         public abstract StateRunner<StateIdT> Build(IStateChanger<StateIdT> stateChanger);
