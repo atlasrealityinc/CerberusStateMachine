@@ -43,7 +43,7 @@ namespace Cerberus.Tests
         {
             var callLog = new List<string>();
             var container = CreateContainer(callLog);
-            var handlerTypes = new Dictionary<Type, List<Type>>();
+            var handlerTypes = new StateHandlerRegistrations();
             var stateData = new Dictionary<TestStateId, StateData<TestStateId>>
             {
                 { TestStateId.State1, new StateData<TrackingState1, TestStateId, TestEventId>(TestStateId.State1, container, handlerTypes) }
@@ -59,9 +59,9 @@ namespace Cerberus.Tests
         {
             var callLog = new List<string>();
             var container = CreateContainer(callLog);
-            var handlerTypes = new Dictionary<Type, List<Type>>
+            var handlerTypes = new StateHandlerRegistrations
             {
-                { typeof(IState), new List<Type> { typeof(Cerberus.StateHandlers.EnterAndExitStateHandler) } }
+                { typeof(IState), typeof(Cerberus.StateHandlers.EnterAndExitStateHandler) }
             };
             var stateData = new Dictionary<TestStateId, StateData<TestStateId>>
             {
@@ -81,9 +81,9 @@ namespace Cerberus.Tests
         {
             var callLog = new List<string>();
             var container = CreateContainer(callLog);
-            var handlerTypes = new Dictionary<Type, List<Type>>
+            var handlerTypes = new StateHandlerRegistrations
             {
-                { typeof(IState), new List<Type> { typeof(Cerberus.StateHandlers.EnterAndExitStateHandler) } }
+                { typeof(IState), typeof(Cerberus.StateHandlers.EnterAndExitStateHandler) }
             };
             var stateData = new Dictionary<TestStateId, StateData<TestStateId>>
             {
@@ -103,9 +103,9 @@ namespace Cerberus.Tests
         {
             var callLog = new List<string>();
             var container = CreateContainer(callLog);
-            var handlerTypes = new Dictionary<Type, List<Type>>
+            var handlerTypes = new StateHandlerRegistrations
             {
-                { typeof(IState), new List<Type> { typeof(Cerberus.StateHandlers.EnterAndExitStateHandler) } }
+                { typeof(IState), typeof(Cerberus.StateHandlers.EnterAndExitStateHandler) }
             };
             var stateData = new Dictionary<TestStateId, StateData<TestStateId>>
             {
@@ -126,9 +126,9 @@ namespace Cerberus.Tests
         {
             var callLog = new List<string>();
             var container = CreateContainer(callLog);
-            var handlerTypes = new Dictionary<Type, List<Type>>
+            var handlerTypes = new StateHandlerRegistrations
             {
-                { typeof(IState), new List<Type> { typeof(Cerberus.StateHandlers.EnterAndExitStateHandler) } }
+                { typeof(IState), typeof(Cerberus.StateHandlers.EnterAndExitStateHandler) }
             };
             var stateData = new Dictionary<TestStateId, StateData<TestStateId>>
             {
@@ -148,9 +148,9 @@ namespace Cerberus.Tests
         {
             var callLog = new List<string>();
             var container = CreateContainer(callLog);
-            var handlerTypes = new Dictionary<Type, List<Type>>
+            var handlerTypes = new StateHandlerRegistrations
             {
-                { typeof(IState), new List<Type> { typeof(Cerberus.StateHandlers.EnterAndExitStateHandler) } }
+                { typeof(IState), typeof(Cerberus.StateHandlers.EnterAndExitStateHandler) }
             };
             var stateData = new Dictionary<TestStateId, StateData<TestStateId>>
             {
@@ -172,9 +172,9 @@ namespace Cerberus.Tests
         {
             var callLog = new List<string>();
             var container = CreateContainer(callLog);
-            var handlerTypes = new Dictionary<Type, List<Type>>
+            var handlerTypes = new StateHandlerRegistrations
             {
-                { typeof(IState), new List<Type> { typeof(Cerberus.StateHandlers.EnterAndExitStateHandler) } }
+                { typeof(IState), typeof(Cerberus.StateHandlers.EnterAndExitStateHandler) }
             };
             var stateData = new Dictionary<TestStateId, StateData<TestStateId>>
             {
@@ -195,9 +195,9 @@ namespace Cerberus.Tests
         {
             var callLog = new List<string>();
             var container = CreateContainer(callLog);
-            var handlerTypes = new Dictionary<Type, List<Type>>
+            var handlerTypes = new StateHandlerRegistrations
             {
-                { typeof(IState), new List<Type> { typeof(Cerberus.StateHandlers.EnterAndExitStateHandler) } }
+                { typeof(IState), typeof(Cerberus.StateHandlers.EnterAndExitStateHandler) }
             };
             var stateData = new Dictionary<TestStateId, StateData<TestStateId>>
             {
@@ -270,7 +270,7 @@ namespace Cerberus.Tests
         {
             var callLog = new List<string>();
             var container = CreateContainer(callLog);
-            var handlerTypes = new Dictionary<Type, List<Type>>();
+            var handlerTypes = new StateHandlerRegistrations();
             var stateData = new Dictionary<TestStateId, StateData<TestStateId>>
             {
                 { TestStateId.State1, new StateData<TrackingState1, TestStateId, TestEventId>(TestStateId.State1, container, handlerTypes) }

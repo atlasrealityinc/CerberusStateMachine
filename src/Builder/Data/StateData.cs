@@ -9,15 +9,16 @@ namespace Cerberus.Builder.Data
             where StateIdT : Enum
     {
         internal IStateMachineContainer StateMachineContainer { get; }
-        internal Dictionary<Type, List<Type>> StateHandlerTypes { get; }
+        //Shared by reference with the builder, which appends the built-in enter/exit handler at Build(), after this StateData exists
+        internal StateHandlerRegistrations StateHandlerRegistrations { get; }
 
         public StateIdT StateId { get; }
 
-        protected StateData(StateIdT stateId, IStateMachineContainer stateMachineContainer, Dictionary<Type, List<Type>> stateHandlerTypes)
+        protected StateData(StateIdT stateId, IStateMachineContainer stateMachineContainer, StateHandlerRegistrations stateHandlerRegistrations)
         {
             StateId = stateId;
             StateMachineContainer = stateMachineContainer ?? throw new ArgumentNullException(nameof(stateMachineContainer));
-            StateHandlerTypes = stateHandlerTypes ?? new Dictionary<Type, List<Type>>();
+            StateHandlerRegistrations = stateHandlerRegistrations ?? new StateHandlerRegistrations();
         }
 
         public abstract StateRunner<StateIdT> Build(IStateChanger<StateIdT> stateChanger);
@@ -27,7 +28,7 @@ namespace Cerberus.Builder.Data
         where StateT : IState
         where StateIdT : Enum
     {
-        public StateData(StateIdT stateId, IStateMachineContainer stateMachineContainer, Dictionary<Type, List<Type>> stateHandlerTypes) : base(stateId, stateMachineContainer, stateHandlerTypes)
+        public StateData(StateIdT stateId, IStateMachineContainer stateMachineContainer, StateHandlerRegistrations stateHandlerRegistrations) : base(stateId, stateMachineContainer, stateHandlerRegistrations)
         {
 
         }
@@ -41,7 +42,7 @@ namespace Cerberus.Builder.Data
         //Checked in registration order when no key-based event matches, see StateRunner.TriggerEvent
         public List<PredicateEvent<EventIdT, IStateEvent<StateT, StateIdT, EventIdT>>> PredicateEvents { get; } = new List<PredicateEvent<EventIdT, IStateEvent<StateT, StateIdT, EventIdT>>>();
 
-        public StateData(StateIdT stateId, IStateMachineContainer stateMachineContainer, Dictionary<Type, List<Type>> stateHandlerTypes) : base(stateId, stateMachineContainer, stateHandlerTypes)
+        public StateData(StateIdT stateId, IStateMachineContainer stateMachineContainer, StateHandlerRegistrations stateHandlerRegistrations) : base(stateId, stateMachineContainer, stateHandlerRegistrations)
         {
 
         }
@@ -85,7 +86,7 @@ namespace Cerberus.Builder.Data
     {
         public Dictionary<SubStateIdT, StateData<SubStateIdT>> SubStateData { get; } = new Dictionary<SubStateIdT, StateData<SubStateIdT>>();
 
-        public StateData(StateIdT stateId, IStateMachineContainer stateMachineContainer, Dictionary<Type, List<Type>> stateHandlerTypes) : base(stateId, stateMachineContainer, stateHandlerTypes)
+        public StateData(StateIdT stateId, IStateMachineContainer stateMachineContainer, StateHandlerRegistrations stateHandlerRegistrations) : base(stateId, stateMachineContainer, stateHandlerRegistrations)
         {
 
         }

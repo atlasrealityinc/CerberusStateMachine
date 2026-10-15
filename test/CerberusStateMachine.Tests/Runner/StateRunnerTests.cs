@@ -39,7 +39,7 @@ namespace Cerberus.Tests.Runner
         {
             var callLog = new List<string>();
             var container = CreateContainer(callLog);
-            var handlerTypes = new Dictionary<Type, List<Type>>();
+            var handlerTypes = new StateHandlerRegistrations();
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId>(
                 TestStateId.State1, container, handlerTypes);
             var stateChanger = Substitute.For<IStateChanger<TestStateId>>();
@@ -60,9 +60,9 @@ namespace Cerberus.Tests.Runner
             {
                 { typeof(TrackingStateHandlerA), handler }
             });
-            var handlerTypes = new Dictionary<Type, List<Type>>
+            var handlerTypes = new StateHandlerRegistrations
             {
-                { typeof(IState), new List<Type> { typeof(TrackingStateHandlerA) } }
+                { typeof(IState), typeof(TrackingStateHandlerA) }
             };
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId>(
                 TestStateId.State1, container, handlerTypes);
@@ -79,9 +79,9 @@ namespace Cerberus.Tests.Runner
         {
             var callLog = new List<string>();
             var container = CreateContainer(callLog);
-            var handlerTypes = new Dictionary<Type, List<Type>>
+            var handlerTypes = new StateHandlerRegistrations
             {
-                { typeof(IState), new List<Type> { typeof(EnterAndExitStateHandler) } }
+                { typeof(IState), typeof(EnterAndExitStateHandler) }
             };
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId>(
                 TestStateId.State1, container, handlerTypes);
@@ -103,9 +103,9 @@ namespace Cerberus.Tests.Runner
                 { typeof(TrackingStateHandlerA), new TrackingStateHandlerA(callLog) }
             });
             // The built-in handler is deliberately listed before the user handler
-            var handlerTypes = new Dictionary<Type, List<Type>>
+            var handlerTypes = new StateHandlerRegistrations
             {
-                { typeof(IState), new List<Type> { typeof(EnterAndExitStateHandler), typeof(TrackingStateHandlerA) } }
+                { typeof(IState), typeof(EnterAndExitStateHandler) }, { typeof(IState), typeof(TrackingStateHandlerA) }
             };
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId>(
                 TestStateId.State1, container, handlerTypes);
@@ -142,9 +142,9 @@ namespace Cerberus.Tests.Runner
                 { typeof(StateChangingHandler), changingHandler },
                 { typeof(TrackingStateHandlerB), trackingHandler }
             });
-            var handlerTypes = new Dictionary<Type, List<Type>>
+            var handlerTypes = new StateHandlerRegistrations
             {
-                { typeof(IState), new List<Type> { typeof(StateChangingHandler), typeof(TrackingStateHandlerB), typeof(EnterAndExitStateHandler) } }
+                { typeof(IState), typeof(StateChangingHandler) }, { typeof(IState), typeof(TrackingStateHandlerB) }, { typeof(IState), typeof(EnterAndExitStateHandler) }
             };
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId>(
                 TestStateId.State1, container, handlerTypes);
@@ -175,9 +175,9 @@ namespace Cerberus.Tests.Runner
                 { typeof(TrackingStateHandlerA), handlerA },
                 { typeof(TrackingStateHandlerB), handlerB }
             });
-            var handlerTypes = new Dictionary<Type, List<Type>>
+            var handlerTypes = new StateHandlerRegistrations
             {
-                { typeof(IState), new List<Type> { typeof(TrackingStateHandlerA), typeof(TrackingStateHandlerB) } }
+                { typeof(IState), typeof(TrackingStateHandlerA) }, { typeof(IState), typeof(TrackingStateHandlerB) }
             };
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId>(
                 TestStateId.State1, container, handlerTypes);
@@ -198,7 +198,7 @@ namespace Cerberus.Tests.Runner
         {
             var callLog = new List<string>();
             var container = CreateContainer(callLog);
-            var handlerTypes = new Dictionary<Type, List<Type>>();
+            var handlerTypes = new StateHandlerRegistrations();
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId>(
                 TestStateId.State1, container, handlerTypes);
             var stateChanger = Substitute.For<IStateChanger<TestStateId>>();
@@ -214,7 +214,7 @@ namespace Cerberus.Tests.Runner
         {
             var callLog = new List<string>();
             var container = CreateContainer(callLog);
-            var handlerTypes = new Dictionary<Type, List<Type>>();
+            var handlerTypes = new StateHandlerRegistrations();
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId>(
                 TestStateId.State1, container, handlerTypes);
             var stateChanger = Substitute.For<IStateChanger<TestStateId>>();
@@ -232,7 +232,7 @@ namespace Cerberus.Tests.Runner
         {
             var callLog = new List<string>();
             var container = CreateContainer(callLog);
-            var handlerTypes = new Dictionary<Type, List<Type>>();
+            var handlerTypes = new StateHandlerRegistrations();
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId>(
                 TestStateId.State1, container, handlerTypes);
             var stateChanger = Substitute.For<IStateChanger<TestStateId>>();
@@ -248,7 +248,7 @@ namespace Cerberus.Tests.Runner
         {
             var callLog = new List<string>();
             var container = CreateContainer(callLog);
-            var handlerTypes = new Dictionary<Type, List<Type>>();
+            var handlerTypes = new StateHandlerRegistrations();
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId>(
                 TestStateId.State1, container, handlerTypes);
             stateData.AddEvent(TestEventId.Event1, e => { });
@@ -266,7 +266,7 @@ namespace Cerberus.Tests.Runner
         {
             var callLog = new List<string>();
             var container = CreateContainer(callLog);
-            var handlerTypes = new Dictionary<Type, List<Type>>();
+            var handlerTypes = new StateHandlerRegistrations();
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId>(
                 TestStateId.State1, container, handlerTypes);
             var stateChanger = Substitute.For<IStateChanger<TestStateId>>();
@@ -283,7 +283,7 @@ namespace Cerberus.Tests.Runner
         {
             var callLog = new List<string>();
             var container = CreateContainer(callLog);
-            var handlerTypes = new Dictionary<Type, List<Type>>();
+            var handlerTypes = new StateHandlerRegistrations();
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId>(
                 TestStateId.State1, container, handlerTypes);
             stateData.AddEvent(TestEventId.Event1, e => { });
@@ -300,7 +300,7 @@ namespace Cerberus.Tests.Runner
         {
             var callLog = new List<string>();
             var container = CreateContainer(callLog);
-            var handlerTypes = new Dictionary<Type, List<Type>>();
+            var handlerTypes = new StateHandlerRegistrations();
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId>(
                 TestStateId.State1, container, handlerTypes);
             var eventInvoked = false;
@@ -319,7 +319,7 @@ namespace Cerberus.Tests.Runner
         {
             var callLog = new List<string>();
             var container = CreateContainer(callLog);
-            var handlerTypes = new Dictionary<Type, List<Type>>();
+            var handlerTypes = new StateHandlerRegistrations();
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId>(
                 TestStateId.State1, container, handlerTypes);
             var stateChanger = Substitute.For<IStateChanger<TestStateId>>();
@@ -337,9 +337,9 @@ namespace Cerberus.Tests.Runner
         {
             var callLog = new List<string>();
             var container = CreateContainer(callLog);
-            var handlerTypes = new Dictionary<Type, List<Type>>
+            var handlerTypes = new StateHandlerRegistrations
             {
-                { typeof(IState), new List<Type> { typeof(EnterAndExitStateHandler) } }
+                { typeof(IState), typeof(EnterAndExitStateHandler) }
             };
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId, TestSubStateId>(
                 TestStateId.State1, container, handlerTypes);
@@ -360,9 +360,9 @@ namespace Cerberus.Tests.Runner
         {
             var callLog = new List<string>();
             var container = CreateContainer(callLog);
-            var handlerTypes = new Dictionary<Type, List<Type>>
+            var handlerTypes = new StateHandlerRegistrations
             {
-                { typeof(IState), new List<Type> { typeof(EnterAndExitStateHandler) } }
+                { typeof(IState), typeof(EnterAndExitStateHandler) }
             };
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId, TestSubStateId>(
                 TestStateId.State1, container, handlerTypes);
@@ -387,9 +387,9 @@ namespace Cerberus.Tests.Runner
         {
             var callLog = new List<string>();
             var container = CreateContainer(callLog);
-            var handlerTypes = new Dictionary<Type, List<Type>>
+            var handlerTypes = new StateHandlerRegistrations
             {
-                { typeof(IState), new List<Type> { typeof(EnterAndExitStateHandler) } }
+                { typeof(IState), typeof(EnterAndExitStateHandler) }
             };
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId, TestSubStateId>(
                 TestStateId.State1, container, handlerTypes);
@@ -410,9 +410,9 @@ namespace Cerberus.Tests.Runner
         {
             var callLog = new List<string>();
             var container = CreateContainer(callLog);
-            var handlerTypes = new Dictionary<Type, List<Type>>
+            var handlerTypes = new StateHandlerRegistrations
             {
-                { typeof(IState), new List<Type> { typeof(EnterAndExitStateHandler) } }
+                { typeof(IState), typeof(EnterAndExitStateHandler) }
             };
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId, TestSubStateId>(
                 TestStateId.State1, container, handlerTypes);
@@ -437,9 +437,9 @@ namespace Cerberus.Tests.Runner
         {
             var callLog = new List<string>();
             var container = CreateContainer(callLog);
-            var handlerTypes = new Dictionary<Type, List<Type>>
+            var handlerTypes = new StateHandlerRegistrations
             {
-                { typeof(IState), new List<Type> { typeof(EnterAndExitStateHandler) } }
+                { typeof(IState), typeof(EnterAndExitStateHandler) }
             };
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId, TestSubStateId>(
                 TestStateId.State1, container, handlerTypes);
@@ -477,9 +477,9 @@ namespace Cerberus.Tests.Runner
             {
                 { typeof(SubStateExitHandler), exitHandler }
             });
-            var handlerTypes = new Dictionary<Type, List<Type>>
+            var handlerTypes = new StateHandlerRegistrations
             {
-                { typeof(IState), new List<Type> { typeof(SubStateExitHandler), typeof(EnterAndExitStateHandler) } }
+                { typeof(IState), typeof(SubStateExitHandler) }, { typeof(IState), typeof(EnterAndExitStateHandler) }
             };
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId, TestSubStateId>(
                 TestStateId.State1, container, handlerTypes);
@@ -539,7 +539,7 @@ namespace Cerberus.Tests.Runner
         {
             var callLog = new List<string>();
             var container = CreateContainer(callLog);
-            var handlerTypes = new Dictionary<Type, List<Type>>();
+            var handlerTypes = new StateHandlerRegistrations();
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId, TestSubStateId>(
                 TestStateId.State1, container, handlerTypes);
             var sub1 = new StateData<TrackingSubState1, TestSubStateId, TestSubEventId>(
@@ -559,7 +559,7 @@ namespace Cerberus.Tests.Runner
         {
             var callLog = new List<string>();
             var container = CreateContainer(callLog);
-            var handlerTypes = new Dictionary<Type, List<Type>>();
+            var handlerTypes = new StateHandlerRegistrations();
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId, TestSubStateId>(
                 TestStateId.State1, container, handlerTypes);
             var sub1 = new StateData<TrackingSubState1, TestSubStateId, TestSubEventId>(
@@ -576,9 +576,9 @@ namespace Cerberus.Tests.Runner
         private StateRunner<TrackingState1, TestStateId, TestEventId, TestSubStateId> CreateRunnerWithSubStates(List<string> callLog)
         {
             var container = CreateContainer(callLog);
-            var handlerTypes = new Dictionary<Type, List<Type>>
+            var handlerTypes = new StateHandlerRegistrations
             {
-                { typeof(IState), new List<Type> { typeof(EnterAndExitStateHandler) } }
+                { typeof(IState), typeof(EnterAndExitStateHandler) }
             };
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId, TestSubStateId>(
                 TestStateId.State1, container, handlerTypes);
@@ -596,7 +596,7 @@ namespace Cerberus.Tests.Runner
             var callLog = new List<string>();
             var container = CreateContainer(callLog);
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId>(
-                TestStateId.State1, container, new Dictionary<Type, List<Type>>());
+                TestStateId.State1, container, new StateHandlerRegistrations());
             var runner = new StateRunner<TrackingState1, TestStateId, TestEventId>(stateData, Substitute.For<IStateChanger<TestStateId>>());
             runner.Start(TestStateId.State1);
 
@@ -651,7 +651,7 @@ namespace Cerberus.Tests.Runner
             var callLog = new List<string>();
             var container = CreateContainer(callLog);
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId>(
-                TestStateId.State1, container, new Dictionary<Type, List<Type>>());
+                TestStateId.State1, container, new StateHandlerRegistrations());
             var runner = new StateRunner<TrackingState1, TestStateId, TestEventId>(stateData, Substitute.For<IStateChanger<TestStateId>>());
 
             Assert.IsInstanceOfType<IStateRunner>(runner);
@@ -665,7 +665,7 @@ namespace Cerberus.Tests.Runner
             var callLog = new List<string>();
             var container = CreateContainer(callLog);
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId>(
-                TestStateId.State1, container, new Dictionary<Type, List<Type>>());
+                TestStateId.State1, container, new StateHandlerRegistrations());
             var eventInvoked = false;
             stateData.AddEvent(TestEventId.Event1, e => eventInvoked = true);
             var runner = new StateRunner<TrackingState1, TestStateId, TestEventId>(stateData, Substitute.For<IStateChanger<TestStateId>>());
@@ -683,7 +683,7 @@ namespace Cerberus.Tests.Runner
             var callLog = new List<string>();
             var container = CreateContainer(callLog);
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId>(
-                TestStateId.State1, container, new Dictionary<Type, List<Type>>());
+                TestStateId.State1, container, new StateHandlerRegistrations());
             stateData.AddEvent(TestEventId.Event1, e => { });
             var runner = new StateRunner<TrackingState1, TestStateId, TestEventId>(stateData, Substitute.For<IStateChanger<TestStateId>>());
 
@@ -698,7 +698,7 @@ namespace Cerberus.Tests.Runner
         private StateData<TrackingState1, TestStateId, TestFlagEventId> CreateFlagStateData()
         {
             return new StateData<TrackingState1, TestStateId, TestFlagEventId>(
-                TestStateId.State1, CreateContainer(new List<string>()), new Dictionary<Type, List<Type>>());
+                TestStateId.State1, CreateContainer(new List<string>()), new StateHandlerRegistrations());
         }
 
         private static StateRunner<TrackingState1, TestStateId, TestFlagEventId> CreateFlagRunner(

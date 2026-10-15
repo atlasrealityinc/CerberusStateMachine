@@ -57,9 +57,9 @@ namespace Cerberus.Tests.StateController
             container.Resolve<TrackingSubState1>().Returns(_ => new TrackingSubState1(callLog));
             container.Resolve<TrackingSubState2>().Returns(_ => new TrackingSubState2(callLog));
             container.Resolve(Arg.Any<Type>()).Returns(ci => Activator.CreateInstance((Type)ci[0]));
-            var handlerTypes = new Dictionary<Type, List<Type>>
+            var handlerTypes = new StateHandlerRegistrations
             {
-                { typeof(IState), new List<Type> { typeof(Cerberus.StateHandlers.EnterAndExitStateHandler) } }
+                { typeof(IState), typeof(Cerberus.StateHandlers.EnterAndExitStateHandler) }
             };
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId, TestSubStateId>(
                 TestStateId.State1, container, handlerTypes);
@@ -88,9 +88,9 @@ namespace Cerberus.Tests.StateController
             container.Resolve<TrackingSubState1>().Returns(_ => new TrackingSubState1(callLog));
             container.Resolve<TrackingSubState2>().Returns(_ => new TrackingSubState2(callLog));
             container.Resolve(Arg.Any<Type>()).Returns(ci => Activator.CreateInstance((Type)ci[0]));
-            var handlerTypes = new Dictionary<Type, List<Type>>
+            var handlerTypes = new StateHandlerRegistrations
             {
-                { typeof(IState), new List<Type> { typeof(Cerberus.StateHandlers.EnterAndExitStateHandler) } }
+                { typeof(IState), typeof(Cerberus.StateHandlers.EnterAndExitStateHandler) }
             };
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId, TestSubStateId>(
                 TestStateId.State1, container, handlerTypes);

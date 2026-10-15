@@ -60,8 +60,9 @@ namespace Cerberus.Builder
 
         /// <summary>
         /// Registers <typeparamref name="StateHandlerT"/> to run for every state assignable to <typeparamref name="StateT"/>.
-        /// Handlers wrap the state: <c>OnEnterState</c> runs before the state's <c>OnEnter()</c>, and <c>OnExitState</c>
-        /// runs after its <c>OnExit()</c>, in the reverse of the enter order.
+        /// Handlers run in the order they are registered, regardless of <typeparamref name="StateT"/>, and wrap the state:
+        /// <c>OnEnterState</c> runs before the state's <c>OnEnter()</c>, and <c>OnExitState</c> runs after its
+        /// <c>OnExit()</c>, in the reverse of the enter order.
         /// </summary>
         public StateMachineBuilder<StateIdT> AddStateHandler<StateT, StateHandlerT>()
             where StateHandlerT : IStateHandler<StateT>
@@ -76,7 +77,8 @@ namespace Cerberus.Builder
     {
         protected readonly IStateMachineContainer _stateMachineContainer;
         private protected readonly Dictionary<StateIdT, StateData<StateIdT>> _states = new Dictionary<StateIdT, StateData<StateIdT>>();
-        private protected readonly Dictionary<Type, List<Type>> _stateHandlerTypes = new Dictionary<Type, List<Type>>();
+        //Kept in AddStateHandler call order and shared by reference with every StateData, see StateHandlerRegistrations
+        private protected readonly StateHandlerRegistrations _stateHandlerRegistrations = new StateHandlerRegistrations();
         private protected readonly StateMachineData<StateIdT> _stateMachineData = null;
 
         private protected StateMachineBuilderWithStates(IStateMachineContainer stateMachineContainer, Func<StateMachineData<StateIdT>> stateMachineDataBuilder) : this(stateMachineContainer)
@@ -97,7 +99,7 @@ namespace Cerberus.Builder
                 throw new ArgumentException($"Could not create state {typeof(StateT)} with id {stateId}. {exisitingStateRunner.StateId} already found!");
             }
 
-            var stateData = new StateData<StateT, StateIdT, EventIdT>(stateId, _stateMachineContainer, _stateHandlerTypes);
+            var stateData = new StateData<StateT, StateIdT, EventIdT>(stateId, _stateMachineContainer, _stateHandlerRegistrations);
             _states.Add(stateId, stateData);
             return new StateBuilder<StateT, StateIdT, EventIdT, StateMachineBuilderWithStates<StateIdT>>(this, stateData);
         }
@@ -111,9 +113,9 @@ namespace Cerberus.Builder
                 throw new ArgumentException($"Could not create state {typeof(StateT)} with id {stateId}. {existingStateData.StateId} already found!");
             }
 
-            var stateData = new StateData<StateT, StateIdT, EventIdT, SubStateIdT>(stateId, _stateMachineContainer, _stateHandlerTypes);
+            var stateData = new StateData<StateT, StateIdT, EventIdT, SubStateIdT>(stateId, _stateMachineContainer, _stateHandlerRegistrations);
             _states.Add(stateId, stateData);
-            return new StateBuilderWithSubStates<StateT, StateIdT, EventIdT, SubStateIdT, StateMachineBuilderWithStates<StateIdT>>(this, stateData, _stateMachineContainer, _stateHandlerTypes);
+            return new StateBuilderWithSubStates<StateT, StateIdT, EventIdT, SubStateIdT, StateMachineBuilderWithStates<StateIdT>>(this, stateData, _stateMachineContainer, _stateHandlerRegistrations);
         }
 
         public IStateMachine<StateIdT> Build()
@@ -125,14 +127,7 @@ namespace Cerberus.Builder
         protected void BaseAddStateHandler<StateT, StateHandlerT>()
             where StateHandlerT : IStateHandler<StateT>
         {
-            if (_stateHandlerTypes.TryGetValue(typeof(StateT), out var list))
-            {
-                list.Add(typeof(StateHandlerT));
-            }
-            else
-            {
-                _stateHandlerTypes.Add(typeof(StateT), new List<Type>() { typeof(StateHandlerT) });
-            }
+            _stateHandlerRegistrations.Add<StateT, StateHandlerT>();
         }
     }
 }

@@ -16,7 +16,7 @@ namespace Cerberus.Tests.Builder
         public void Test_AddEvent_AddsEventToStateData()
         {
             var container = Substitute.For<IStateMachineContainer>();
-            var handlerTypes = new Dictionary<Type, List<Type>>();
+            var handlerTypes = new StateHandlerRegistrations();
             var stateData = new StateData<NoOpState, TestStateId, TestEventId>(
                 TestStateId.State1, container, handlerTypes);
             var parentBuilder = new object();
@@ -32,7 +32,7 @@ namespace Cerberus.Tests.Builder
         public void Test_AddEvent_ReturnsSelf()
         {
             var container = Substitute.For<IStateMachineContainer>();
-            var handlerTypes = new Dictionary<Type, List<Type>>();
+            var handlerTypes = new StateHandlerRegistrations();
             var stateData = new StateData<NoOpState, TestStateId, TestEventId>(
                 TestStateId.State1, container, handlerTypes);
             var parentBuilder = new object();
@@ -48,7 +48,7 @@ namespace Cerberus.Tests.Builder
         public void Test_End_ReturnsParentBuilder()
         {
             var container = Substitute.For<IStateMachineContainer>();
-            var handlerTypes = new Dictionary<Type, List<Type>>();
+            var handlerTypes = new StateHandlerRegistrations();
             var stateData = new StateData<NoOpState, TestStateId, TestEventId>(
                 TestStateId.State1, container, handlerTypes);
             var parentBuilder = new object();
@@ -65,7 +65,7 @@ namespace Cerberus.Tests.Builder
         {
             var container = Substitute.For<IStateMachineContainer>();
             var stateData = new StateData<NoOpState, TestStateId, TestFlagEventId>(
-                TestStateId.State1, container, new Dictionary<Type, List<Type>>());
+                TestStateId.State1, container, new StateHandlerRegistrations());
             var builder = new StateBuilder<NoOpState, TestStateId, TestFlagEventId, object>(new object(), stateData);
 
             builder.AddEvent(e => e.IsOn, e => { });
@@ -79,7 +79,7 @@ namespace Cerberus.Tests.Builder
         {
             var container = Substitute.For<IStateMachineContainer>();
             var stateData = new StateData<NoOpState, TestStateId, TestFlagEventId>(
-                TestStateId.State1, container, new Dictionary<Type, List<Type>>());
+                TestStateId.State1, container, new StateHandlerRegistrations());
             var builder = new StateBuilder<NoOpState, TestStateId, TestFlagEventId, object>(new object(), stateData);
 
             var result = builder.AddEvent(e => e.IsOn, e => { });
@@ -92,7 +92,7 @@ namespace Cerberus.Tests.Builder
         {
             var container = Substitute.For<IStateMachineContainer>();
             var stateData = new StateData<NoOpState, TestStateId, TestFlagEventId>(
-                TestStateId.State1, container, new Dictionary<Type, List<Type>>());
+                TestStateId.State1, container, new StateHandlerRegistrations());
             var builder = new StateBuilder<NoOpState, TestStateId, TestFlagEventId, object>(new object(), stateData);
 
             var ex = Assert.ThrowsExactly<ArgumentNullException>(() => builder.AddEvent((Func<TestFlagEventId, bool>)null, e => { }));

@@ -19,9 +19,9 @@ namespace Cerberus.Tests.Builder.Data
             var container = Substitute.For<IStateMachineContainer>();
             container.Resolve<TrackingState1>().Returns(new TrackingState1(callLog));
             container.Resolve(Arg.Any<Type>()).Returns(ci => Activator.CreateInstance((Type)ci[0]));
-            var handlerTypes = new Dictionary<Type, List<Type>>
+            var handlerTypes = new StateHandlerRegistrations
             {
-                { typeof(IState), new List<Type> { typeof(Cerberus.StateHandlers.EnterAndExitStateHandler) } }
+                { typeof(IState), typeof(Cerberus.StateHandlers.EnterAndExitStateHandler) }
             };
             var stateData = new StateData<TrackingState1, TestStateId, TestEventId>(
                 TestStateId.State1, container, handlerTypes);

@@ -16,7 +16,7 @@ namespace Cerberus.Tests.Builder.Data
         public void Test_Constructor_SetsStateId()
         {
             var container = Substitute.For<IStateMachineContainer>();
-            var handlerTypes = new Dictionary<Type, List<Type>>();
+            var handlerTypes = new StateHandlerRegistrations();
 
             var stateData = new StateData<NoOpState, TestStateId, TestEventId>(
                 TestStateId.State1, container, handlerTypes);
@@ -27,7 +27,7 @@ namespace Cerberus.Tests.Builder.Data
         [TestMethod]
         public void Test_Constructor_NullContainer_ThrowsArgumentNullException()
         {
-            var handlerTypes = new Dictionary<Type, List<Type>>();
+            var handlerTypes = new StateHandlerRegistrations();
 
             Assert.ThrowsException<ArgumentNullException>(() =>
                 new StateData<NoOpState, TestStateId, TestEventId>(
@@ -38,7 +38,7 @@ namespace Cerberus.Tests.Builder.Data
         public void Test_AddEvent_AddsSuccessfully()
         {
             var container = Substitute.For<IStateMachineContainer>();
-            var handlerTypes = new Dictionary<Type, List<Type>>();
+            var handlerTypes = new StateHandlerRegistrations();
             var stateData = new StateData<NoOpState, TestStateId, TestEventId>(
                 TestStateId.State1, container, handlerTypes);
 
@@ -51,7 +51,7 @@ namespace Cerberus.Tests.Builder.Data
         public void Test_AddEvent_DuplicateEventId_ThrowsArgumentException()
         {
             var container = Substitute.For<IStateMachineContainer>();
-            var handlerTypes = new Dictionary<Type, List<Type>>();
+            var handlerTypes = new StateHandlerRegistrations();
             var stateData = new StateData<NoOpState, TestStateId, TestEventId>(
                 TestStateId.State1, container, handlerTypes);
             stateData.AddEvent(TestEventId.Event1, e => { });
@@ -64,7 +64,7 @@ namespace Cerberus.Tests.Builder.Data
         public void Test_Build_ReturnsStateRunner()
         {
             var container = Substitute.For<IStateMachineContainer>();
-            var handlerTypes = new Dictionary<Type, List<Type>>();
+            var handlerTypes = new StateHandlerRegistrations();
             var stateData = new StateData<NoOpState, TestStateId, TestEventId>(
                 TestStateId.State1, container, handlerTypes);
             var stateChanger = Substitute.For<IStateChanger<TestStateId>>();
@@ -79,7 +79,7 @@ namespace Cerberus.Tests.Builder.Data
         public void Test_SubState_AddSubState_AddsSuccessfully()
         {
             var container = Substitute.For<IStateMachineContainer>();
-            var handlerTypes = new Dictionary<Type, List<Type>>();
+            var handlerTypes = new StateHandlerRegistrations();
             var stateData = new StateData<NoOpState, TestStateId, TestEventId, TestSubStateId>(
                 TestStateId.State1, container, handlerTypes);
             var subStateData = new StateData<NoOpState, TestSubStateId, TestSubEventId>(
@@ -94,7 +94,7 @@ namespace Cerberus.Tests.Builder.Data
         public void Test_SubState_AddSubState_DuplicateId_ThrowsArgumentException()
         {
             var container = Substitute.For<IStateMachineContainer>();
-            var handlerTypes = new Dictionary<Type, List<Type>>();
+            var handlerTypes = new StateHandlerRegistrations();
             var stateData = new StateData<NoOpState, TestStateId, TestEventId, TestSubStateId>(
                 TestStateId.State1, container, handlerTypes);
             var sub1 = new StateData<NoOpState, TestSubStateId, TestSubEventId>(
@@ -113,7 +113,7 @@ namespace Cerberus.Tests.Builder.Data
             var container = Substitute.For<IStateMachineContainer>();
             container.Resolve<NoOpState>().Returns(new NoOpState());
             container.Resolve(Arg.Any<Type>()).Returns(ci => Activator.CreateInstance((Type)ci[0]));
-            var handlerTypes = new Dictionary<Type, List<Type>>();
+            var handlerTypes = new StateHandlerRegistrations();
             var stateData = new StateData<NoOpState, TestStateId, TestEventId, TestSubStateId>(
                 TestStateId.State1, container, handlerTypes);
             var subStateData = new StateData<NoOpState, TestSubStateId, TestSubEventId>(
@@ -132,7 +132,7 @@ namespace Cerberus.Tests.Builder.Data
         {
             var container = Substitute.For<IStateMachineContainer>();
             var stateData = new StateData<NoOpState, TestStateId, TestFlagEventId>(
-                TestStateId.State1, container, new Dictionary<Type, List<Type>>());
+                TestStateId.State1, container, new StateHandlerRegistrations());
             Func<TestFlagEventId, bool> predicate = e => e.IsOn;
             Action<IStateEvent<NoOpState, TestStateId, TestFlagEventId>> action = e => { };
 
@@ -149,7 +149,7 @@ namespace Cerberus.Tests.Builder.Data
         {
             var container = Substitute.For<IStateMachineContainer>();
             var stateData = new StateData<NoOpState, TestStateId, TestFlagEventId>(
-                TestStateId.State1, container, new Dictionary<Type, List<Type>>());
+                TestStateId.State1, container, new StateHandlerRegistrations());
 
             var ex = Assert.ThrowsExactly<ArgumentNullException>(() => stateData.AddEvent((Func<TestFlagEventId, bool>)null, e => { }));
 
@@ -162,7 +162,7 @@ namespace Cerberus.Tests.Builder.Data
         {
             var container = Substitute.For<IStateMachineContainer>();
             var stateData = new StateData<NoOpState, TestStateId, TestFlagEventId>(
-                TestStateId.State1, container, new Dictionary<Type, List<Type>>());
+                TestStateId.State1, container, new StateHandlerRegistrations());
             Func<TestFlagEventId, bool> predicate = e => e.IsOn;
             Action<IStateEvent<NoOpState, TestStateId, TestFlagEventId>> first = e => { };
             Action<IStateEvent<NoOpState, TestStateId, TestFlagEventId>> second = e => { };

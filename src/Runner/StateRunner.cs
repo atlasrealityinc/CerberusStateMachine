@@ -52,7 +52,7 @@ namespace Cerberus.Runner
     {
         protected readonly IStateChanger<StateIdT> _stateChanger;
         protected readonly Stack<object> _stateHandlerInstances = new Stack<object>();
-        //Flattened at Build() into the handler types that apply to StateT, so Start() can walk it without re-checking IsAssignableFrom
+        //Flattened at Build() into the handler types that apply to StateT, in registration order, so Start() can walk it without re-checking IsAssignableFrom
         protected readonly Type[] _stateHandlerTypes;
 
         protected StateIdT _previousStateId;
@@ -70,7 +70,7 @@ namespace Cerberus.Runner
         public StateRunner(StateData<StateT, StateIdT> stateData, IStateChanger<StateIdT> stateChanger) : base(stateData)
         {
             _stateChanger = stateChanger;
-            _stateHandlerTypes = FlattenStateHandlerTypes(stateData.StateHandlerTypes);
+            _stateHandlerTypes = FlattenStateHandlerTypes(stateData.StateHandlerRegistrations);
         }
 
         public override void Start(StateIdT previousStateId)
@@ -95,36 +95,6 @@ namespace Cerberus.Runner
             }
         }
 
-        private static Type[] FlattenStateHandlerTypes(Dictionary<Type, List<Type>> stateHandlerTypes)
-        {
-            var flattened = new List<Type>();
-            var hasEnterAndExitStateHandler = false;
-            foreach (var stateHandlerTypeKvp in stateHandlerTypes)
-            {
-                if (!stateHandlerTypeKvp.Key.IsAssignableFrom(typeof(StateT)))
-                {
-                    continue;
-                }
-
-                foreach (var stateHandlerType in stateHandlerTypeKvp.Value)
-                {
-                    if (stateHandlerType == typeof(EnterAndExitStateHandler))
-                    {
-                        hasEnterAndExitStateHandler = true;
-                        continue;
-                    }
-                    flattened.Add(stateHandlerType);
-                }
-            }
-
-            //The built-in handler is what calls the state's own OnEnter()/OnExit(), so it always goes last: user handlers enter before the state and, because Stop() pops a stack, exit after it
-            if (hasEnterAndExitStateHandler)
-            {
-                flattened.Add(typeof(EnterAndExitStateHandler));
-            }
-            return flattened.ToArray();
-        }
-
         public override void Stop()
         {
             if (ActiveInstance == null)
@@ -143,6 +113,34 @@ namespace Cerberus.Runner
         public void StateChangerChangeState(StateIdT stateId)
         {
             _stateChanger?.ChangeState(stateId);
+        }
+
+        private static Type[] FlattenStateHandlerTypes(StateHandlerRegistrations stateHandlerRegistrations)
+        {
+            var flattened = new List<Type>();
+            var hasEnterAndExitStateHandler = false;
+            foreach (var registration in stateHandlerRegistrations)
+            {
+                if (!registration.StateType.IsAssignableFrom(typeof(StateT)))
+                {
+                    continue;
+                }
+
+                if (registration.HandlerType == typeof(EnterAndExitStateHandler))
+                {
+                    hasEnterAndExitStateHandler = true;
+                    continue;
+                }
+                flattened.Add(registration.HandlerType);
+            }
+
+            //The built-in handler is what calls the state's own OnEnter()/OnExit(), so it always goes last: user handlers enter before the state and, because Stop() pops a stack, exit after it.
+            //Build() already appends it last, this also covers registrations built by hand and a repeated Build()
+            if (hasEnterAndExitStateHandler)
+            {
+                flattened.Add(typeof(EnterAndExitStateHandler));
+            }
+            return flattened.ToArray();
         }
     }
 

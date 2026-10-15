@@ -466,7 +466,7 @@ enter:  handler 1 → handler 2 → ... → state.OnEnter()
 exit:   state.OnExit() → ... → handler 2 → handler 1
 ```
 
-This holds whether a handler targets `IState` or a narrower type, and regardless of the order you call `AddStateHandler`. Handlers registered for the same `StateT` enter in registration order; do not rely on a particular order between handlers registered for different `StateT` types.
+The wrap holds whether a handler targets `IState` or a narrower type. Handlers enter in the order you call `AddStateHandler`, regardless of which `StateT` each one targets, and exit in the reverse of that order. In the registration example above, `LoggingHandler` therefore enters before `MovementHandler` on every movement state.
 
 If a handler's `OnEnterState()` changes state, the remaining handlers and the state's `OnEnter()` are skipped, and only the handlers that already entered receive `OnExitState()`.
 
