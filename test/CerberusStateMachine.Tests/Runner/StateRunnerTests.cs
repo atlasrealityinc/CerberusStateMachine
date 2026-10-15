@@ -165,6 +165,58 @@ namespace Cerberus.Tests.Runner
         }
 
         [TestMethod]
+        public void Test_Start_WhenHandlerCausesStateChangeAndReEntry_DoesNotResumeStaleEnter()
+        {
+            var callLog = new List<string>();
+            var stateChanger = Substitute.For<IStateChanger<TestStateId>>();
+            var hasChangedState = false;
+            // Triggers the change only on its first enter, so the re-entrant Start() runs to completion
+            var changingHandler = new StateChangingHandler(state =>
+            {
+                callLog.Add("ChangingHandler:Enter");
+                if (!hasChangedState)
+                {
+                    hasChangedState = true;
+                    stateChanger.ChangeState(TestStateId.State2);
+                }
+            });
+            var container = CreateContainer(callLog, new Dictionary<Type, object>
+            {
+                { typeof(StateChangingHandler), changingHandler },
+                { typeof(TrackingStateHandlerB), new TrackingStateHandlerB(callLog) }
+            });
+            var handlerTypes = new StateHandlerRegistrations
+            {
+                { typeof(IState), typeof(StateChangingHandler) }, { typeof(IState), typeof(TrackingStateHandlerB) }, { typeof(IState), typeof(EnterAndExitStateHandler) }
+            };
+            var stateData = new StateData<TrackingState1, TestStateId, TestEventId>(
+                TestStateId.State1, container, handlerTypes);
+            var runner = new StateRunner<TrackingState1, TestStateId, TestEventId>(stateData, stateChanger);
+            // The real state machine stops the runner it is leaving. Here the target state bounces straight back,
+            // re-entering this runner before its first enter has unwound
+            stateChanger.When(x => x.ChangeState(Arg.Any<TestStateId>())).Do(_ =>
+            {
+                runner.Stop();
+                runner.Start(TestStateId.State2);
+            });
+
+            runner.Start(TestStateId.State1);
+            runner.Stop();
+
+            // The interrupted enter must not resume once the re-entrant Start() has entered every handler,
+            // otherwise the remaining handlers and the state enter twice and the stack exits them twice
+            CollectionAssert.AreEqual(new[]
+            {
+                "ChangingHandler:Enter",
+                "ChangingHandler:Enter",
+                "HandlerB:Enter:TrackingState1",
+                "State1:Enter",
+                "State1:Exit",
+                "HandlerB:Exit:TrackingState1"
+            }, callLog);
+        }
+
+        [TestMethod]
         public void Test_Stop_CallsHandlersOnExitState_InReverseOrder()
         {
             var callLog = new List<string>();
@@ -395,6 +447,71 @@ namespace Cerberus.Tests.Runner
             CollectionAssert.AreEqual(new[] { "ChangingHandler:Enter" }, callLog);
             Assert.IsNull(runner.ActiveInstance);
             Assert.IsNull(runner.ActiveSubState);
+        }
+
+        [TestMethod]
+        public void Test_SubState_Start_WhenHandlerCausesStateChangeAndReEntry_EntersStateAndDefaultSubStateOnce()
+        {
+            var callLog = new List<string>();
+            var stateChanger = Substitute.For<IStateChanger<TestStateId>>();
+            var hasChangedState = false;
+            // The registrations are shared with the sub-state, so only react to the parent entering, and only the first time
+            var changingHandler = new StateChangingHandler(state =>
+            {
+                if (state is TrackingState1)
+                {
+                    callLog.Add("ChangingHandler:Enter");
+                    if (!hasChangedState)
+                    {
+                        hasChangedState = true;
+                        stateChanger.ChangeState(TestStateId.State2);
+                    }
+                }
+            });
+            var container = CreateContainer(callLog, new Dictionary<Type, object>
+            {
+                { typeof(StateChangingHandler), changingHandler },
+                { typeof(TrackingStateHandlerB), new TrackingStateHandlerB(callLog) }
+            });
+            var handlerTypes = new StateHandlerRegistrations
+            {
+                { typeof(IState), typeof(StateChangingHandler) }, { typeof(IState), typeof(TrackingStateHandlerB) }, { typeof(IState), typeof(EnterAndExitStateHandler) }
+            };
+            var stateData = new StateData<TrackingState1, TestStateId, TestEventId, TestSubStateId>(
+                TestStateId.State1, container, handlerTypes);
+            var subStateData = new StateData<TrackingSubState1, TestSubStateId, TestSubEventId>(
+                TestSubStateId.SubState1, container, handlerTypes);
+            stateData.AddSubState(TestSubStateId.SubState1, subStateData);
+            var runner = new StateRunner<TrackingState1, TestStateId, TestEventId, TestSubStateId>(stateData, stateChanger);
+            // The target state bounces straight back, re-entering this runner and its default sub-state before the first enter has unwound
+            stateChanger.When(x => x.ChangeState(Arg.Any<TestStateId>())).Do(_ =>
+            {
+                runner.Stop();
+                runner.Start(TestStateId.State2);
+            });
+
+            runner.Start(TestStateId.State1);
+
+            Assert.IsNotNull(runner.ActiveInstance);
+            Assert.IsNotNull(runner.ActiveSubState);
+            Assert.AreEqual(TestSubStateId.SubState1, runner.ActiveSubState.StateId);
+
+            runner.Stop();
+
+            // The state and its default sub-state each enter once, and the single set of handlers on the stack exits once
+            CollectionAssert.AreEqual(new[]
+            {
+                "ChangingHandler:Enter",
+                "ChangingHandler:Enter",
+                "HandlerB:Enter:TrackingState1",
+                "State1:Enter",
+                "HandlerB:Enter:TrackingSubState1",
+                "SubState1:Enter",
+                "SubState1:Exit",
+                "HandlerB:Exit:TrackingSubState1",
+                "State1:Exit",
+                "HandlerB:Exit:TrackingState1"
+            }, callLog);
         }
 
         [TestMethod]

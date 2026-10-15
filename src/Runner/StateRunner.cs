@@ -56,6 +56,9 @@ namespace Cerberus.Runner
         protected readonly Type[] _stateHandlerTypes;
 
         protected StateIdT _previousStateId;
+        //Bumped by every Stop(). Start() captures it before each handler runs and abandons the enter if it has moved.
+        //A null check on ActiveInstance cannot tell "stopped" from "stopped and re-entered", so it would resume this stale enter on top of the fresh one
+        protected int _stopCount;
 
         protected object[] _activeInstance = new object[1];
         public IState ActiveInstance
@@ -82,14 +85,15 @@ namespace Cerberus.Runner
 
             _previousStateId = previousStateId;
             ActiveInstance = _container.Resolve<StateT>();
+            var stopCount = _stopCount;
             foreach (var stateHandlerType in _stateHandlerTypes)
             {
                 var stateHandlerInstance = _container.Resolve(stateHandlerType);
                 _stateHandlerInstances.Push(stateHandlerInstance);
                 stateHandlerInstance.GetType().GetMethod("OnEnterState", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance).Invoke(stateHandlerInstance, _activeInstance);
-                if (ActiveInstance == null)
+                if (_stopCount != stopCount)
                 {
-                    //Calling the OnEnterState can result in the state changing, so if the state changes and Stop() is called (And the ActiveInstance becomes null) we stop
+                    //The handler changed state, so Stop() ran mid-enter. If that change bounced straight back, the re-entrant Start() has already pushed and entered every handler, so this frame must not push them again
                     return;
                 }
             }
@@ -102,6 +106,7 @@ namespace Cerberus.Runner
                 return;
             }
 
+            _stopCount++;
             while (_stateHandlerInstances.Count > 0)
             {
                 var stateHandlerInstance = _stateHandlerInstances.Pop();
@@ -233,11 +238,12 @@ namespace Cerberus.Runner
                 return;
             }
 
+            var stopCount = _stopCount;
             base.Start(previousStateId);
 
-            if (ActiveInstance == null)
+            if (_stopCount != stopCount)
             {
-                //A handler's OnEnterState changed state and Stop() ran mid-enter, so this state is no longer active and must not enter a sub-state
+                //A handler's OnEnterState changed state and Stop() ran mid-enter. Any re-entrant Start() has already entered the default sub-state, so this frame must not touch ActiveSubState
                 return;
             }
 

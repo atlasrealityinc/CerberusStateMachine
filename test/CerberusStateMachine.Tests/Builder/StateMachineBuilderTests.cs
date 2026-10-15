@@ -256,6 +256,69 @@ namespace Cerberus.Tests.Builder
         }
 
         [TestMethod]
+        public void Test_AddStateHandler_HandlerChangesStateOnEnter_TargetBouncesBack_EntersSourceOnce()
+        {
+            var callLog = new List<string>();
+            IStateMachine<TestStateId> sm = null;
+            var hasLeftState1 = false;
+            var hasBouncedFromState2 = false;
+            // Registered for IState so it runs for both states: the first time it enters State1 it leaves for State2,
+            // and the first time it enters State2 it bounces straight back to State1
+            var changingHandler = new StateChangingHandler(state =>
+            {
+                callLog.Add($"ChangingHandler:Enter:{state.GetType().Name}");
+                if (state is TrackingState1 && !hasLeftState1)
+                {
+                    hasLeftState1 = true;
+                    sm.StateController.TriggerEvent(TestEventId.Event1);
+                }
+                else if (state is TrackingState2 && !hasBouncedFromState2)
+                {
+                    hasBouncedFromState2 = true;
+                    sm.StateController.TriggerEvent(TestEventId.Event2);
+                }
+            });
+            var container = CreateContainer(callLog, new Dictionary<Type, object>
+            {
+                { typeof(StateChangingHandler), changingHandler },
+                { typeof(TrackingStateHandlerB), new TrackingStateHandlerB(callLog) }
+            });
+            sm = new StateMachineBuilder<TestStateId>(container)
+                .AddStateHandler<IState, StateChangingHandler>()
+                .AddStateHandler<IState, TrackingStateHandlerB>()
+                .State<TrackingState1, TestEventId>(TestStateId.State1)
+                    .AddEvent(TestEventId.Event1, e => e.ChangeState(TestStateId.State2))
+                    .AddEvent(TestEventId.Event3, e => callLog.Add("State1:Event3"))
+                    .End()
+                .State<TrackingState2, TestEventId>(TestStateId.State2)
+                    .AddEvent(TestEventId.Event2, e => e.ChangeState(TestStateId.State1))
+                    .End()
+                .Build();
+
+            sm.Start();
+            // Proves the machine is in State1 once Start() returns
+            sm.StateController.TriggerEvent(TestEventId.Event3);
+            // A plain transition out of State1 proves it entered exactly once: duplicate handlers on its stack would exit twice
+            sm.StateController.TriggerEvent(TestEventId.Event1);
+
+            // State1's interrupted enter is abandoned and the bounce enters it afresh from the first handler
+            CollectionAssert.AreEqual(new[]
+            {
+                "ChangingHandler:Enter:TrackingState1",
+                "ChangingHandler:Enter:TrackingState2",
+                "ChangingHandler:Enter:TrackingState1",
+                "HandlerB:Enter:TrackingState1",
+                "State1:Enter",
+                "State1:Event3",
+                "State1:Exit",
+                "HandlerB:Exit:TrackingState1",
+                "ChangingHandler:Enter:TrackingState2",
+                "HandlerB:Enter:TrackingState2",
+                "State2:Enter"
+            }, callLog);
+        }
+
+        [TestMethod]
         public void Test_AddStateHandler_NarrowerHandlerRegisteredAfterIStateHandler_StillWrapsState()
         {
             var callLog = new List<string>();
