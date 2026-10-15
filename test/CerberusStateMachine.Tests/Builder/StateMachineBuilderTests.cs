@@ -319,6 +319,123 @@ namespace Cerberus.Tests.Builder
         }
 
         [TestMethod]
+        public void Test_AddStateHandler_HandlerChangesStateOnExit_RedirectsTransition()
+        {
+            var callLog = new List<string>();
+            IStateMachine<TestStateId> sm = null;
+            var hasRedirected = false;
+            // Registered for IState so it also runs for the other states, hence the type filter. Fires only on State1's first exit
+            var exitHandler = new SubStateExitHandler(state =>
+            {
+                if (state is TrackingState1 && !hasRedirected)
+                {
+                    hasRedirected = true;
+                    callLog.Add("ExitHandler:Fired");
+                    sm.StateController.TriggerEvent(TestEventId.Event3);
+                }
+            });
+            var container = CreateContainer(callLog, new Dictionary<Type, object>
+            {
+                { typeof(TrackingStateHandlerB), new TrackingStateHandlerB(callLog) },
+                { typeof(SubStateExitHandler), exitHandler }
+            });
+            // HandlerB is registered first so it is still on the stack when the exit handler fires
+            sm = new StateMachineBuilder<TestStateId>(container)
+                .AddStateHandler<IState, TrackingStateHandlerB>()
+                .AddStateHandler<IState, SubStateExitHandler>()
+                .State<TrackingState1, TestEventId>(TestStateId.State1)
+                    .AddEvent(TestEventId.Event1, e => e.ChangeState(TestStateId.State2))
+                    .AddEvent(TestEventId.Event3, e => e.ChangeState(TestStateId.State3))
+                    .End()
+                .State<TrackingState2, TestEventId>(TestStateId.State2).End()
+                .State<TrackingState3, TestEventId>(TestStateId.State3)
+                    .AddEvent(TestEventId.Event2, e => callLog.Add("State3:Event2"))
+                    .End()
+                .Build();
+            sm.Start();
+            callLog.Clear();
+
+            sm.StateController.TriggerEvent(TestEventId.Event1);
+            // Proves the machine is in State3, not State2, once the transition returns
+            sm.StateController.TriggerEvent(TestEventId.Event2);
+
+            // The exit handler's change finishes State1's exit inside the call, enters State3 and abandons the transition to State2
+            CollectionAssert.AreEqual(new[]
+            {
+                "State1:Exit",
+                "ExitHandler:Fired",
+                "HandlerB:Exit:TrackingState1",
+                "HandlerB:Enter:TrackingState3",
+                "State3:Enter",
+                "State3:Event2"
+            }, callLog);
+        }
+
+        [TestMethod]
+        public void Test_AddStateHandler_HandlerChangesStateOnExit_TargetBouncesBack_AbandonsOriginalTransition()
+        {
+            var callLog = new List<string>();
+            IStateMachine<TestStateId> sm = null;
+            var hasRedirected = false;
+            var hasBounced = false;
+            // Logs every enter. The first time it enters State3 it bounces straight back to State1
+            var changingHandler = new StateChangingHandler(state =>
+            {
+                callLog.Add($"ChangingHandler:Enter:{state.GetType().Name}");
+                if (state is TrackingState3 && !hasBounced)
+                {
+                    hasBounced = true;
+                    sm.StateController.TriggerEvent(TestEventId.Event2);
+                }
+            });
+            // Fires only on State1's first exit and redirects the transition to State3
+            var exitHandler = new SubStateExitHandler(state =>
+            {
+                if (state is TrackingState1 && !hasRedirected)
+                {
+                    hasRedirected = true;
+                    callLog.Add("ExitHandler:Fired");
+                    sm.StateController.TriggerEvent(TestEventId.Event3);
+                }
+            });
+            var container = CreateContainer(callLog, new Dictionary<Type, object>
+            {
+                { typeof(StateChangingHandler), changingHandler },
+                { typeof(SubStateExitHandler), exitHandler }
+            });
+            sm = new StateMachineBuilder<TestStateId>(container)
+                .AddStateHandler<IState, StateChangingHandler>()
+                .AddStateHandler<IState, SubStateExitHandler>()
+                .State<TrackingState1, TestEventId>(TestStateId.State1)
+                    .AddEvent(TestEventId.Event1, e => e.ChangeState(TestStateId.State2))
+                    .AddEvent(TestEventId.Event2, e => callLog.Add("State1:Event2"))
+                    .AddEvent(TestEventId.Event3, e => e.ChangeState(TestStateId.State3))
+                    .End()
+                .State<TrackingState2, TestEventId>(TestStateId.State2).End()
+                .State<TrackingState3, TestEventId>(TestStateId.State3)
+                    .AddEvent(TestEventId.Event2, e => e.ChangeState(TestStateId.State1))
+                    .End()
+                .Build();
+            sm.Start();
+            callLog.Clear();
+
+            sm.StateController.TriggerEvent(TestEventId.Event1);
+            // Proves the machine is back in State1 once the transition returns
+            sm.StateController.TriggerEvent(TestEventId.Event2);
+
+            // State1 exits once, State3's enter bounces back, State1 enters afresh, and State2 is never entered
+            CollectionAssert.AreEqual(new[]
+            {
+                "State1:Exit",
+                "ExitHandler:Fired",
+                "ChangingHandler:Enter:TrackingState3",
+                "ChangingHandler:Enter:TrackingState1",
+                "State1:Enter",
+                "State1:Event2"
+            }, callLog);
+        }
+
+        [TestMethod]
         public void Test_AddStateHandler_NarrowerHandlerRegisteredAfterIStateHandler_StillWrapsState()
         {
             var callLog = new List<string>();

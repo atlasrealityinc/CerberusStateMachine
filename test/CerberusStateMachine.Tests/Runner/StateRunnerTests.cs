@@ -24,6 +24,7 @@ namespace Cerberus.Tests.Runner
             container.Resolve<NoOpState>().Returns(_ => new NoOpState());
             container.Resolve<TrackingSubState1>().Returns(_ => new TrackingSubState1(callLog));
             container.Resolve<TrackingSubState2>().Returns(_ => new TrackingSubState2(callLog));
+            container.Resolve<TrackingSubState3>().Returns(_ => new TrackingSubState3(callLog));
             container.Resolve(Arg.Any<Type>()).Returns(ci =>
             {
                 var type = (Type)ci[0];
@@ -214,6 +215,66 @@ namespace Cerberus.Tests.Runner
                 "State1:Exit",
                 "HandlerB:Exit:TrackingState1"
             }, callLog);
+        }
+
+        [TestMethod]
+        public void Test_Stop_WhenExitHandlerCausesStateChangeAndReEntry_DoesNotPopFreshHandlers()
+        {
+            var callLog = new List<string>();
+            var stateChanger = Substitute.For<IStateChanger<TestStateId>>();
+            var hasChangedState = false;
+            // Fires only on the first exit, so the exit that follows the bounce runs to completion
+            var exitHandler = new SubStateExitHandler(state =>
+            {
+                if (!hasChangedState)
+                {
+                    hasChangedState = true;
+                    callLog.Add("ExitHandler:Fired");
+                    stateChanger.ChangeState(TestStateId.State2);
+                }
+            });
+            var container = CreateContainer(callLog, new Dictionary<Type, object>
+            {
+                { typeof(TrackingStateHandlerB), new TrackingStateHandlerB(callLog) },
+                { typeof(SubStateExitHandler), exitHandler }
+            });
+            // HandlerB is registered first so it is still on the stack when the exit handler fires and the nested Stop() has to drain it
+            var handlerTypes = new StateHandlerRegistrations
+            {
+                { typeof(IState), typeof(TrackingStateHandlerB) }, { typeof(IState), typeof(SubStateExitHandler) }, { typeof(IState), typeof(EnterAndExitStateHandler) }
+            };
+            var stateData = new StateData<TrackingState1, TestStateId, TestEventId>(
+                TestStateId.State1, container, handlerTypes);
+            var runner = new StateRunner<TrackingState1, TestStateId, TestEventId>(stateData, stateChanger);
+            // The real state machine stops the runner it is leaving. Here the target state bounces straight back,
+            // re-entering this runner before its first exit has unwound
+            stateChanger.When(x => x.ChangeState(Arg.Any<TestStateId>())).Do(_ =>
+            {
+                runner.Stop();
+                runner.Start(TestStateId.State2);
+            });
+            runner.Start(TestStateId.State1);
+            callLog.Clear();
+
+            runner.Stop();
+
+            // The nested Stop() drains HandlerB inside the exit handler, the bounce re-enters, and the interrupted outer Stop() must leave the fresh handlers alone
+            CollectionAssert.AreEqual(new[]
+            {
+                "State1:Exit",
+                "ExitHandler:Fired",
+                "HandlerB:Exit:TrackingState1",
+                "HandlerB:Enter:TrackingState1",
+                "State1:Enter"
+            }, callLog);
+            Assert.IsNotNull(runner.ActiveInstance);
+
+            callLog.Clear();
+            runner.Stop();
+
+            // Exactly one set of handlers is on the stack, so the re-entered state exits once
+            CollectionAssert.AreEqual(new[] { "State1:Exit", "HandlerB:Exit:TrackingState1" }, callLog);
+            Assert.IsNull(runner.ActiveInstance);
         }
 
         [TestMethod]
@@ -691,6 +752,208 @@ namespace Cerberus.Tests.Runner
             // SubState2 should NOT have entered because the parent was stopped
             Assert.IsFalse(callLog.Contains("SubState2:Enter"),
                 "SubState2 should not enter after parent state was exited");
+        }
+
+        [TestMethod]
+        public void Test_SubState_Stop_WhenSubStateExitHandlerCausesStateChangeAndReEntry_KeepsReEnteredState()
+        {
+            var callLog = new List<string>();
+            var stateChanger = Substitute.For<IStateChanger<TestStateId>>();
+            var hasChangedState = false;
+            // The registrations are shared with the parent, so only react to the sub-state exiting, and only the first time
+            var exitHandler = new SubStateExitHandler(state =>
+            {
+                if (state is TrackingSubState1 && !hasChangedState)
+                {
+                    hasChangedState = true;
+                    callLog.Add("ExitHandler:Fired");
+                    stateChanger.ChangeState(TestStateId.State2);
+                }
+            });
+            var container = CreateContainer(callLog, new Dictionary<Type, object>
+            {
+                { typeof(SubStateExitHandler), exitHandler }
+            });
+            var handlerTypes = new StateHandlerRegistrations
+            {
+                { typeof(IState), typeof(SubStateExitHandler) }, { typeof(IState), typeof(EnterAndExitStateHandler) }
+            };
+            var stateData = new StateData<TrackingState1, TestStateId, TestEventId, TestSubStateId>(
+                TestStateId.State1, container, handlerTypes);
+            stateData.AddSubState(TestSubStateId.SubState1, new StateData<TrackingSubState1, TestSubStateId, TestSubEventId>(
+                TestSubStateId.SubState1, container, handlerTypes));
+            var runner = new StateRunner<TrackingState1, TestStateId, TestEventId, TestSubStateId>(stateData, stateChanger);
+            // The target state bounces straight back, re-entering this runner and its default sub-state before the first exit has unwound
+            stateChanger.When(x => x.ChangeState(Arg.Any<TestStateId>())).Do(_ =>
+            {
+                runner.Stop();
+                runner.Start(TestStateId.State2);
+            });
+            runner.Start(TestStateId.State1);
+            callLog.Clear();
+
+            runner.Stop();
+
+            CollectionAssert.AreEqual(new[]
+            {
+                "SubState1:Exit",
+                "ExitHandler:Fired",
+                "State1:Exit",
+                "State1:Enter",
+                "SubState1:Enter"
+            }, callLog);
+            Assert.IsNotNull(runner.ActiveInstance);
+            Assert.IsNotNull(runner.ActiveSubState);
+            Assert.AreEqual(TestSubStateId.SubState1, runner.ActiveSubState.StateId);
+
+            callLog.Clear();
+            runner.Stop();
+
+            // The interrupted outer Stop() left the re-entered state and sub-state intact, so both exit once now
+            CollectionAssert.AreEqual(new[] { "SubState1:Exit", "State1:Exit" }, callLog);
+            Assert.IsNull(runner.ActiveInstance);
+            Assert.IsNull(runner.ActiveSubState);
+        }
+
+        [TestMethod]
+        public void Test_SubState_ChangeState_WhenSubStateExitHandlerChangesSubState_LatestRequestWins()
+        {
+            var callLog = new List<string>();
+            StateRunner<TrackingState1, TestStateId, TestEventId, TestSubStateId> runner = null;
+            var hasChangedState = false;
+            var exitHandler = new SubStateExitHandler(state =>
+            {
+                if (state is TrackingSubState1 && !hasChangedState)
+                {
+                    hasChangedState = true;
+                    callLog.Add("ExitHandler:Fired");
+                    runner.ChangeState(TestSubStateId.SubState3);
+                }
+            });
+            var container = CreateContainer(callLog, new Dictionary<Type, object>
+            {
+                { typeof(SubStateExitHandler), exitHandler }
+            });
+            var handlerTypes = new StateHandlerRegistrations
+            {
+                { typeof(IState), typeof(SubStateExitHandler) }, { typeof(IState), typeof(EnterAndExitStateHandler) }
+            };
+            var stateData = new StateData<TrackingState1, TestStateId, TestEventId, TestSubStateId>(
+                TestStateId.State1, container, handlerTypes);
+            stateData.AddSubState(TestSubStateId.SubState1, new StateData<TrackingSubState1, TestSubStateId, TestSubEventId>(
+                TestSubStateId.SubState1, container, handlerTypes));
+            stateData.AddSubState(TestSubStateId.SubState2, new StateData<TrackingSubState2, TestSubStateId, TestSubEventId>(
+                TestSubStateId.SubState2, container, handlerTypes));
+            stateData.AddSubState(TestSubStateId.SubState3, new StateData<TrackingSubState3, TestSubStateId, TestSubEventId>(
+                TestSubStateId.SubState3, container, handlerTypes));
+            runner = new StateRunner<TrackingState1, TestStateId, TestEventId, TestSubStateId>(stateData, Substitute.For<IStateChanger<TestStateId>>());
+            runner.Start(TestStateId.State1);
+            callLog.Clear();
+
+            runner.ChangeState(TestSubStateId.SubState2);
+
+            // The exit handler's request is the latest one, so it wins and SubState2 is never entered
+            CollectionAssert.AreEqual(new[]
+            {
+                "SubState1:Exit",
+                "ExitHandler:Fired",
+                "SubState3:Enter"
+            }, callLog);
+            Assert.AreEqual(TestSubStateId.SubState3, runner.ActiveSubState.StateId);
+        }
+
+        [TestMethod]
+        public void Test_SubState_ChangeState_WhenParentExitedAndReEntered_DoesNotStartRequestedSubState()
+        {
+            var callLog = new List<string>();
+            var stateChanger = Substitute.For<IStateChanger<TestStateId>>();
+            var hasChangedState = false;
+            var exitHandler = new SubStateExitHandler(state =>
+            {
+                if (state is TrackingSubState1 && !hasChangedState)
+                {
+                    hasChangedState = true;
+                    callLog.Add("ExitHandler:Fired");
+                    stateChanger.ChangeState(TestStateId.State2);
+                }
+            });
+            var container = CreateContainer(callLog, new Dictionary<Type, object>
+            {
+                { typeof(SubStateExitHandler), exitHandler }
+            });
+            var handlerTypes = new StateHandlerRegistrations
+            {
+                { typeof(IState), typeof(SubStateExitHandler) }, { typeof(IState), typeof(EnterAndExitStateHandler) }
+            };
+            var stateData = new StateData<TrackingState1, TestStateId, TestEventId, TestSubStateId>(
+                TestStateId.State1, container, handlerTypes);
+            stateData.AddSubState(TestSubStateId.SubState1, new StateData<TrackingSubState1, TestSubStateId, TestSubEventId>(
+                TestSubStateId.SubState1, container, handlerTypes));
+            stateData.AddSubState(TestSubStateId.SubState2, new StateData<TrackingSubState2, TestSubStateId, TestSubEventId>(
+                TestSubStateId.SubState2, container, handlerTypes));
+            var runner = new StateRunner<TrackingState1, TestStateId, TestEventId, TestSubStateId>(stateData, stateChanger);
+            // The sub-state's exit handler exits the parent and the target bounces straight back, re-entering the parent and its default sub-state
+            stateChanger.When(x => x.ChangeState(Arg.Any<TestStateId>())).Do(_ =>
+            {
+                runner.Stop();
+                runner.Start(TestStateId.State2);
+            });
+            runner.Start(TestStateId.State1);
+            callLog.Clear();
+
+            runner.ChangeState(TestSubStateId.SubState2);
+
+            // The request belonged to the parent's previous run, so the re-entered parent keeps its default sub-state
+            CollectionAssert.AreEqual(new[]
+            {
+                "SubState1:Exit",
+                "ExitHandler:Fired",
+                "State1:Exit",
+                "State1:Enter",
+                "SubState1:Enter"
+            }, callLog);
+            Assert.AreEqual(TestSubStateId.SubState1, runner.ActiveSubState.StateId);
+        }
+
+        [TestMethod]
+        public void Test_SubState_ChangeState_WhileParentIsStopping_IsIgnored()
+        {
+            var callLog = new List<string>();
+            StateRunner<TrackingState1, TestStateId, TestEventId, TestSubStateId> runner = null;
+            var hasChangedState = false;
+            var exitHandler = new SubStateExitHandler(state =>
+            {
+                if (state is TrackingSubState1 && !hasChangedState)
+                {
+                    hasChangedState = true;
+                    callLog.Add("ExitHandler:Fired");
+                    runner.ChangeState(TestSubStateId.SubState2);
+                }
+            });
+            var container = CreateContainer(callLog, new Dictionary<Type, object>
+            {
+                { typeof(SubStateExitHandler), exitHandler }
+            });
+            var handlerTypes = new StateHandlerRegistrations
+            {
+                { typeof(IState), typeof(SubStateExitHandler) }, { typeof(IState), typeof(EnterAndExitStateHandler) }
+            };
+            var stateData = new StateData<TrackingState1, TestStateId, TestEventId, TestSubStateId>(
+                TestStateId.State1, container, handlerTypes);
+            stateData.AddSubState(TestSubStateId.SubState1, new StateData<TrackingSubState1, TestSubStateId, TestSubEventId>(
+                TestSubStateId.SubState1, container, handlerTypes));
+            stateData.AddSubState(TestSubStateId.SubState2, new StateData<TrackingSubState2, TestSubStateId, TestSubEventId>(
+                TestSubStateId.SubState2, container, handlerTypes));
+            runner = new StateRunner<TrackingState1, TestStateId, TestEventId, TestSubStateId>(stateData, Substitute.For<IStateChanger<TestStateId>>());
+            runner.Start(TestStateId.State1);
+            callLog.Clear();
+
+            runner.Stop();
+
+            // A parent on its way out has no sub-state to change, so SubState2 must not enter and outlive the parent's exit
+            CollectionAssert.AreEqual(new[] { "SubState1:Exit", "ExitHandler:Fired", "State1:Exit" }, callLog);
+            Assert.IsNull(runner.ActiveInstance);
+            Assert.IsNull(runner.ActiveSubState);
         }
 
         [TestMethod]

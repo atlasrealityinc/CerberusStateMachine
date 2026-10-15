@@ -56,8 +56,8 @@ namespace Cerberus.Runner
         protected readonly Type[] _stateHandlerTypes;
 
         protected StateIdT _previousStateId;
-        //Bumped by every Stop(). Start() captures it before each handler runs and abandons the enter if it has moved.
-        //A null check on ActiveInstance cannot tell "stopped" from "stopped and re-entered", so it would resume this stale enter on top of the fresh one
+        //Bumped by every Stop(). Start() and Stop() each capture it before invoking a handler and abandon their loop if it has moved, because the handler changed state.
+        //A null check on ActiveInstance cannot tell "stopped" from "stopped and re-entered", so it would resume a stale loop on top of the fresh run
         protected int _stopCount;
 
         protected object[] _activeInstance = new object[1];
@@ -107,10 +107,16 @@ namespace Cerberus.Runner
             }
 
             _stopCount++;
+            var stopCount = _stopCount;
             while (_stateHandlerInstances.Count > 0)
             {
                 var stateHandlerInstance = _stateHandlerInstances.Pop();
                 stateHandlerInstance.GetType().GetMethod("OnExitState", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance).Invoke(stateHandlerInstance, _activeInstance);
+                if (_stopCount != stopCount)
+                {
+                    //The handler changed state. The nested Stop() it caused has already drained the rest of the stack, and any Start() since has pushed handlers that belong to the new enter, so this frame must not pop them or null the fresh instance
+                    return;
+                }
             }
             ActiveInstance = null;
         }
@@ -202,6 +208,10 @@ namespace Cerberus.Runner
 
         public SubStateIdT DefaultSubStateId { get; }
         public StateRunner<SubStateIdT> ActiveSubState { get; private set; }
+        //Bumped by every sub-state transition and every Stop() of this state, so ChangeState() can tell that stopping a sub-state led to another change (a sibling, or this state's parent) before it starts the one it was asked for
+        private int _subStateTransitionCount;
+        //True while this state's own exit is in progress, when a request to change its sub-state must be ignored
+        private bool _isStopping;
 
         public override IStateRunner ActiveSubStateRunner => ActiveSubState;
 
@@ -265,18 +275,34 @@ namespace Cerberus.Runner
                 return;
             }
 
+            _subStateTransitionCount++;
+            _isStopping = true;
+            var stopCount = _stopCount;
             //ActiveSubState is still null while this state's own handlers are entering, so a handler-triggered change must still fall through to base.Stop()
             if (ActiveSubState != null)
             {
                 ActiveSubState.Stop();
+                if (_stopCount != stopCount)
+                {
+                    //A sub-state exit handler changed this state's parent, so a nested Stop() already finished this exit (and a Start() may have re-entered since): nothing is left for this frame
+                    return;
+                }
                 ActiveSubState = null;
             }
 
             base.Stop();
+            //By now this state's exit has completed, in this frame or a nested one, and any re-entry since is a live state
+            _isStopping = false;
         }
 
         public void ChangeState(SubStateIdT stateId)
         {
+            if (ActiveInstance == null || _isStopping)
+            {
+                //A state that is not running, or is on its way out, has no sub-state to change
+                return;
+            }
+
             var previousSubStateId = DefaultSubStateId;
             if (ActiveSubState != null)
             {
@@ -286,13 +312,13 @@ namespace Cerberus.Runner
                 }
 
                 previousSubStateId = ActiveSubState.StateId;
+                var transitionCount = ++_subStateTransitionCount;
                 ActiveSubState.Stop();
-            }
-
-            //If calling Stop() on ActiveSubState causes us to exit this state, we do not want to call Start() on the next substate
-            if (ActiveInstance == null)
-            {
-                return;
+                if (_subStateTransitionCount != transitionCount)
+                {
+                    //The sub-state's exit changed state again (a sibling, or this state's parent) and that nested change has already run to completion, so this transition is abandoned
+                    return;
+                }
             }
 
             if (_subStateRunners.TryGetValue(stateId, out var nextSubStateRunner))

@@ -56,6 +56,11 @@ namespace Cerberus.Tests.TestHelpers
         public TrackingSubState2(List<string> callLog) : base(callLog, "SubState2") { }
     }
 
+    public class TrackingSubState3 : TrackingState
+    {
+        public TrackingSubState3(List<string> callLog) : base(callLog, "SubState3") { }
+    }
+
     public class TrackingGrandchildState1 : TrackingState
     {
         public TrackingGrandchildState1(List<string> callLog) : base(callLog, "GrandchildState1") { }

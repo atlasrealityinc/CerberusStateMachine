@@ -21,6 +21,8 @@ namespace Cerberus
 
         private StateRunner<StateIdT> _activeState = null;
         private bool _isRunning = false;
+        //Bumped by every transition, so ChangeState() can tell that stopping the active state led to another change before it starts the one it was asked for
+        private int _transitionCount;
 
         public StateMachine(IDictionary<StateIdT, StateData<StateIdT>> stateData, StateMachineData<StateIdT> stateMachineData)
         {
@@ -59,7 +61,13 @@ namespace Cerberus
                 }
 
                 previousSubStateId = _activeState.StateId;
+                var transitionCount = ++_transitionCount;
                 _activeState.Stop();
+                if (_transitionCount != transitionCount)
+                {
+                    //An exit handler changed state again and that nested change has already run to completion, so this transition is abandoned and its target is never entered
+                    return;
+                }
             }
 
             if (_stateRunners.TryGetValue(stateId, out var nextActiveState))

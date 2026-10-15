@@ -470,6 +470,8 @@ The wrap holds whether a handler targets `IState` or a narrower type. Handlers e
 
 If a handler's `OnEnterState()` changes state, the remaining handlers and the state's `OnEnter()` are skipped, and only the handlers that already entered receive `OnExitState()`. For a state with sub-states, its default sub-state is not entered either. This holds even when the new state transitions straight back: the interrupted enter is abandoned and the original state is entered afresh from its first handler, so nothing enters or exits twice.
 
+If a handler's `OnExitState()` (or the state's `OnExit()`) changes state instead, the handlers that have not exited yet exit inside that call, the new state is entered, and the transition that was already in progress is abandoned: its target is never entered. Requesting the exiting state itself is ignored and the original transition continues. A sub-state's exit can redirect to a sibling sub-state or to another top-level state in the same way, but a sub-state change requested while its parent state is exiting is ignored.
+
 ## State Controllers
 
 After building and starting a state machine, you interact with it at runtime through its **state controller**. Every `IStateMachine<StateIdT>` exposes a single `StateController` that is not tied to a particular state or event type, so there is nothing to look up: you trigger an event and the state machine delivers it to whichever states are currently active.
